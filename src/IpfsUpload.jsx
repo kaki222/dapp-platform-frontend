@@ -4,8 +4,9 @@
 
 import { useState } from 'react'
 
-const PINATA_API_KEY    = import.meta.env.VITE_PINATA_API_KEY
-const PINATA_SECRET_KEY = import.meta.env.VITE_PINATA_SECRET_KEY
+//const PINATA_API_KEY    = import.meta.env.VITE_PINATA_API_KEY
+//const PINATA_SECRET_KEY = import.meta.env.VITE_PINATA_SECRET_KEY
+const PINATA_JWT = import.meta.env.VITE_PINATA_JWT
 const PINATA_URL        = 'https://api.pinata.cloud/pinning/pinFileToIPFS'
 
 export default function IpfsUpload({ onCid }) {
@@ -35,8 +36,7 @@ export default function IpfsUpload({ onCid }) {
       const res = await fetch(PINATA_URL, {
         method: 'POST',
         headers: {
-          pinata_api_key:        PINATA_API_KEY,
-          pinata_secret_api_key: PINATA_SECRET_KEY,
+          Authorization: `Bearer ${PINATA_JWT}`,
         },
         body: formData,
       })
