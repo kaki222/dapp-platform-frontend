@@ -4,3 +4,4 @@ frontend/node_modules/
 contracts-workspace/node_modules/
 contracts-workspace/artifacts/
 contracts-workspace/cache/
+.vercel
