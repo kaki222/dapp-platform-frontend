@@ -307,6 +307,7 @@ function App() {
       const loadedProviders = []
       for (const addr of addrs) {
         const p = await trading.providers(addr)
+        console.log('provider raw:', addr, JSON.stringify(p, null, 2))
         if (!p.active) continue
         const subbed = await trading.isSubscribed(account, addr)
         loadedProviders.push({
@@ -325,6 +326,7 @@ function App() {
 
       // My provider profile
       const me = await trading.providers(account)
+        console.log('me raw:', JSON.stringify(me, null, 2))
       if (me.active) {
         setMyProviderData({
           name:        me.name,
