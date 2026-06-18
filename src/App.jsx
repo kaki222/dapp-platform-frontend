@@ -55,8 +55,8 @@ const TRADING_ABI = [
   "function getProviderList() view returns (address[])",
   "function getProviderSignals(address provider) view returns (uint256[])",
   "function getSignal(uint256 id) view returns (tuple(uint256 id, address provider, string asset, string direction, uint256 entryPrice, uint256 stopLoss, uint256 takeProfit, string rationale, uint256 timestamp, bool resolved, bool hit, int256 pnlBps))",
-  //"function providers(address) view returns (address addr, string name, string bio, string strategyIpfsHash, uint256 monthlyFee, uint256 subscriberCount, uint256 totalPnLBps, uint256 winRate, uint256 signalCount, bool verified, bool active, uint256 registeredAt)",
-  "function providers(address) view returns (address addr, string name, string bio, string strategyIpfsHash, uint256 monthlyFee, uint256 subscriberCount, uint256 totalPnLBps, uint256 winRate, uint256 signalCount, bool verified, bool active, uint256 registeredAt)",
+  //"function providers(address) view returns (string name, string bio, string strategyIpfsHash, uint256 monthlyFee, uint256 subscriberCount, uint256 totalPnLBps, uint256 winRate, uint256 signalCount, bool verified, bool active, uint256 registeredAt)",
+  "function providers(address) view returns (string name, string bio, string strategyIpfsHash, uint256 monthlyFee, uint256 subscriberCount, uint256 totalPnLBps, uint256 winRate, uint256 signalCount, bool verified, bool active, uint256 registeredAt)",
   "function pendingWithdrawal(address) view returns (uint256)",
   "function platformFeeBps() view returns (uint256)",
 ]
