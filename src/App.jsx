@@ -43,6 +43,7 @@ const ESCROW_ABI = [
 ]
 
 const TRADING_ABI = [
+  "function updateStrategy(string calldata newHash) external",
   "function registerProvider(string name, string bio, string strategyHash, uint256 monthlyFee)",
   "function verifyProvider(address provider)",
   "function publishSignal(string asset, string direction, uint256 entryPrice, uint256 stopLoss, uint256 takeProfit, string rationale)",
@@ -324,7 +325,7 @@ function App() {
 
       // My provider profile
       const me = await trading.providers(account)
-      if (me.active) {
+      if (me.name && me.name.length > 0) {
         setMyProviderData({
           name:        me.name,
           verified:    me.verified,
