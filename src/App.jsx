@@ -1,3 +1,4 @@
+import UpdateStrategy from './components/UpdateStrategy';
 import IpfsUpload from './IpfsUpload'
 import { useState, useEffect, useCallback } from 'react'
 import { ethers } from 'ethers'
@@ -964,6 +965,9 @@ function App() {
                   </div>
                 )}
 
+                {myProviderData && (
+                  <UpdateStrategy trading={trading} account={account} />
+                )}
                 {/* Signal Feed */}
                 {tradingSubTab === 'feed' && (
                   <div className="box" style={{ background: '#16213e', border: '1px solid #0f3460' }}>

@@ -1,7 +1,3 @@
-// Drop-in replacement for src/components/UpdateStrategy.jsx
-// Reuses the `trading` contract instance and `account` you already have in App.jsx
-// No new ABI, no new signer — just calls trading.updateStrategy(hash)
-
 import { useState } from 'react'
 
 export default function UpdateStrategy({ trading, account, currentHash }) {
