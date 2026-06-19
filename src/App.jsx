@@ -1,3 +1,4 @@
+import ResolveSignal from './components/ResolveSignal';
 import UpdateStrategy from './components/UpdateStrategy';
 import IpfsUpload from './IpfsUpload'
 import { useState, useEffect, useCallback } from 'react'
@@ -44,6 +45,7 @@ const ESCROW_ABI = [
 ]
 
 const TRADING_ABI = [
+  "function resolveSignal(uint256 signalId, bool tpHit, int256 pnlBps) external",
   "function updateStrategy(string calldata newHash) external",
   "function registerProvider(string name, string bio, string strategyHash, uint256 monthlyFee)",
   "function verifyProvider(address provider)",
@@ -163,6 +165,7 @@ function App() {
   const [signals, setSignals]             = useState([])
   const [myProviderData, setMyProviderData] = useState(null)
   const [pendingPayout, setPendingPayout] = useState('0')
+  const [signalFilter, setSignalFilter] = useState('all') // 'all' | 'open' | 'resolved'
   const [tradingSubTab, setTradingSubTab] = useState('feed')
   const [newProvider, setNewProvider]     = useState({ name: '', bio: '', strategyHash: '', monthlyFee: '0.01' })
   const [newSignal, setNewSignal]         = useState({ asset: 'XAU/USD', direction: 'LONG', entryPrice: '', stopLoss: '', takeProfit: '', rationale: '' })
@@ -969,16 +972,35 @@ function App() {
                   <UpdateStrategy trading={trading} account={account} />
                 )}
                 {/* Signal Feed */}
-                {tradingSubTab === 'feed' && (
+{tradingSubTab === 'feed' && (
                   <div className="box" style={{ background: '#16213e', border: '1px solid #0f3460' }}>
                     <div className="is-flex is-justify-content-space-between mb-4">
                       <h2 className="subtitle has-text-white mb-0">📡 Live Signal Feed ({signals.length})</h2>
-                      <button className="button is-small is-info" onClick={loadTradingData}>Refresh</button>
+                      <div className="is-flex">
+                        <div className="select is-small mr-2">
+                          <select
+                            value={signalFilter}
+                            onChange={e => setSignalFilter(e.target.value)}
+                            style={{ background: '#0f3460', color: 'white', border: '1px solid #333' }}
+                          >
+                            <option value="all">All</option>
+                            <option value="open">Open</option>
+                            <option value="resolved">Resolved</option>
+                          </select>
+                        </div>
+                        <button className="button is-small is-info" onClick={loadTradingData}>Refresh</button>
+                      </div>
                     </div>
-                    {signals.length === 0 ? (
-                      <div className="has-text-centered py-6"><p className="has-text-grey">No signals published yet.</p></div>
-                    ) : (
-                      signals.map(s => (
+                    {(() => {
+                      const filteredSignals = signals.filter(s => {
+                        if (signalFilter === 'open') return !s.resolved
+                        if (signalFilter === 'resolved') return s.resolved
+                        return true
+                      })
+                      return filteredSignals.length === 0 ? (
+                        <div className="has-text-centered py-6"><p className="has-text-grey">No signals match this filter.</p></div>
+                      ) : (
+                        filteredSignals.map(s => (
                         <div key={s.id} className="box mb-3" style={{ background: '#0f3460', borderLeft: `4px solid ${s.direction === 'LONG' ? '#48c78e' : '#f14668'}` }}>
                           <div className="columns is-vcentered mb-1">
                             <div className="column">
@@ -1014,8 +1036,9 @@ function App() {
                             <p className="has-text-grey-light is-size-7 mt-1">💬 {s.rationale}</p>
                           )}
                         </div>
-                      ))
-                    )}
+                        ))
+                      )
+                    })()}
                   </div>
                 )}
 
@@ -1281,6 +1304,7 @@ function App() {
             {/* ── ADMIN TAB ── */}
             {activeTab === 'admin' && (
               <div className="box" style={{ background: '#16213e', border: '1px solid #0f3460' }}>
+                <ResolveSignal trading={trading} account={account} owner={owner} signals={signals} onResolved={loadTradingData} />
                 {userRole !== 'ADMIN' ? (
                   <p className="has-text-danger">Access denied — ADMIN role required</p>
                 ) : (
@@ -1333,6 +1357,8 @@ function App() {
                 )}
               </div>
             )}
+
+            
 
           </div>
         )}
