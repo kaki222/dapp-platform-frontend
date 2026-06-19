@@ -9,11 +9,10 @@ import 'bulma/css/bulma.min.css'
 // CONTRACT ADDRESSES
 // ═══════════════════════════════════
 const REGISTRY_ADDRESS     = "0x9347B84753f475960C00365EC7F1C7Fd3a7989F2"
-const RESEARCH_ADDRESS     = "0xfB72641a3420E061e06cd6A6D0CfF568E859a42e"
+const RESEARCH_ADDRESS     = "0x00db2513d3F30e365ff3a820C5ea014BC68eC28C"
 const ESCROW_ADDRESS       = "0xFFa916a6730c1221a3846bba88DAB7f2d7291248"
 const TRADING_ADDRESS      = "0x955ee365A00234369A6F3c92BE9cD5734c730aBB"
 const GAMIFICATION_ADDRESS = "0x1e4Bf31217dBecFB8f0361592BeF9d6F0c0bc33A"
-
 // ═══════════════════════════════════
 // ABIs
 // ═══════════════════════════════════
@@ -26,11 +25,18 @@ const REGISTRY_ABI = [
 ]
 
 const RESEARCH_ABI = [
-  "function createProject(string title, string ipfsHash, uint256 fundingGoalEth, uint256 durationDays) returns (uint256)",
+  "function createProject(string title, string ipfsHash, uint256 fundingGoalEth, uint256 durationDays, string[] milestoneDescs, uint256[] milestonePaymentsEth) returns (uint256)",
   "function fundProject(uint256 projectId) payable",
   "function joinProject(uint256 projectId)",
+  "function completeMilestone(uint256 projectId, uint256 milestoneIdx)",
+  "function approveMilestone(uint256 projectId, uint256 milestoneIdx)",
+  "function completeProject(uint256 projectId, string resultIpfsHash)",
+  "function cancelProject(uint256 projectId)",
   "function projectCount() view returns (uint256)",
-  "function getProject(uint256 id) view returns (tuple(uint256 id, string title, string ipfsHash, address lead, uint256 fundingGoal, uint256 fundingRaised, uint256 deadline, uint8 status, uint256 collaboratorCount))",
+  "function getProject(uint256 id) view returns (tuple(uint256 id, string title, string ipfsHash, address lead, uint256 fundingGoal, uint256 fundingRaised, uint256 deadline, uint8 status, uint256 collaboratorCount, uint256 milestoneCount, uint256 milestoneReleased))",
+  "function getMilestones(uint256 projectId) view returns (tuple(string description, uint256 payment, bool completed, bool approved, bool paid)[])",
+  "function getCollaborators(uint256 id) view returns (address[])",
+  "function getContribution(uint256 projectId, address funder) view returns (uint256)",
 ]
 
 const ESCROW_ABI = [
@@ -147,9 +153,11 @@ function App() {
 
   // Research state
   const [projects, setProjects]     = useState([])
-  const [newProject, setNewProject] = useState({ title: '', ipfsHash: '', fundingGoal: 1, duration: 30 })
+  const [newProject, setNewProject] = useState({ title: '', ipfsHash: '', fundingGoal: 1, duration: 30, milestones: [] })
   const [fundAmount, setFundAmount] = useState('0.01')
 
+  const [expandedProject, setExpandedProject]   = useState(null)
+  const [projectMilestones, setProjectMilestones] = useState({})
   // Consultancy state
   const [engagements, setEngagements]     = useState([])
   const [expandedEng, setExpandedEng]     = useState(null)
@@ -246,7 +254,8 @@ function App() {
           fundingRaised: ethers.formatEther(p.fundingRaised),
           deadline:      new Date(Number(p.deadline) * 1000).toLocaleDateString(),
           status:        STATUS[p.status],
-          collaborators: Number(p.collaboratorCount)
+          collaborators: Number(p.collaboratorCount),
+           milestoneCount: Number(p.milestoneCount)
         })
       }
       setProjects(loaded)
@@ -302,6 +311,23 @@ function App() {
     } catch (err) { console.error("Load milestones error:", err) }
   }
 
+  const loadProjectMilestones = async (projectId) => {
+  if (!research) return
+  try {
+    const ms = await research.getMilestones(projectId)
+    setProjectMilestones(prev => ({
+      ...prev,
+      [projectId]: ms.map((m, idx) => ({
+        idx,
+        description: m.description,
+        payment:     ethers.formatEther(m.payment),
+        completed:   m.completed,
+        approved:    m.approved,
+        paid:        m.paid,
+      }))
+    }))
+  } catch (err) { console.error("Load project milestones error:", err) }
+}
   // ── Load Trading Data ──
   const loadTradingData = useCallback(async () => {
     if (!trading || !account) return
@@ -402,6 +428,12 @@ function App() {
   const updateMilestone    = (idx, field, value) => setNewEng(prev => ({ ...prev, milestones: prev.milestones.map((m, i) => i === idx ? { ...m, [field]: value } : m) }))
   const totalETH = newEng.milestones.reduce((sum, m) => sum + (parseFloat(m.payment) || 0), 0).toFixed(4)
 
+  const addProjectMilestoneRow    = () => setNewProject(prev => ({ ...prev, milestones: [...prev.milestones, { description: '', payment: '' }] }))
+  const removeProjectMilestoneRow = (idx) => setNewProject(prev => ({ ...prev, milestones: prev.milestones.filter((_, i) => i !== idx) }))
+  const updateProjectMilestone    = (idx, field, value) => setNewProject(prev => ({ ...prev, milestones: prev.milestones.map((m, i) => i === idx ? { ...m, [field]: value } : m) }))
+  const projectMilestoneTotal = newProject.milestones.reduce((sum, m) => sum + (parseFloat(m.payment) || 0), 0).toFixed(4)
+
+
   // ── Handlers: Consultancy ──
   const handleCreateEngagement = async () => {
     if (!escrow) return
@@ -441,6 +473,29 @@ function App() {
     } catch (err) { setStatus('Error: ' + err.message); setActionLoading(prev => ({ ...prev, [key]: false })) }
   }
 
+  const handleCompleteProjectMilestone = async (projectId, mIdx) => {
+    const key = `pcomplete-${projectId}-${mIdx}`
+    try {
+      setActionLoading(prev => ({ ...prev, [key]: true })); setStatus('Marking milestone complete...')
+      const tx = await research.completeMilestone(projectId, mIdx); await tx.wait()
+      setStatus(`✅ Milestone #${mIdx + 1} marked complete!`)
+      await loadProjectMilestones(projectId)
+      setActionLoading(prev => ({ ...prev, [key]: false }))
+    } catch (err) { setStatus('Error: ' + err.message); setActionLoading(prev => ({ ...prev, [key]: false })) }
+  }
+
+  const handleApproveProjectMilestone = async (projectId, mIdx) => {
+    const key = `papprove-${projectId}-${mIdx}`
+    try {
+      setActionLoading(prev => ({ ...prev, [key]: true })); setStatus('Approving & releasing payment...')
+      const tx = await research.approveMilestone(projectId, mIdx); await tx.wait()
+      setStatus(`✅ Milestone #${mIdx + 1} approved — payment released to lead!`)
+      await loadProjectMilestones(projectId); await loadProjects()
+      setActionLoading(prev => ({ ...prev, [key]: false }))
+    } catch (err) { setStatus('Error: ' + err.message); setActionLoading(prev => ({ ...prev, [key]: false })) }
+  }
+  
+ 
   const handleRaiseDispute = async (engId) => {
     try {
       setLoading(true); setStatus('Raising dispute...')
@@ -472,9 +527,18 @@ function App() {
     if (!research) return
     try {
       setLoading(true); setStatus('Creating project...')
-      const tx = await research.createProject(newProject.title, newProject.ipfsHash || "ipfs://placeholder", newProject.fundingGoal, newProject.duration)
+      const milestoneDescs = newProject.milestones ? newProject.milestones.map(m => m.description) : []
+      const milestonePayments = newProject.milestones ? newProject.milestones.map(m => m.payment) : []
+      const tx = await research.createProject(
+        newProject.title,
+        newProject.ipfsHash || "ipfs://placeholder",
+        newProject.fundingGoal,
+        newProject.duration,
+        milestoneDescs,
+        milestonePayments
+      )
       await tx.wait(); setStatus('✅ Project created!')
-      setNewProject({ title: '', ipfsHash: '', fundingGoal: 1, duration: 30 }); await loadProjects(); setLoading(false)
+      setNewProject({ title: '', ipfsHash: '', fundingGoal: 1, duration: 30, milestones: [] }); await loadProjects(); setLoading(false)
     } catch (err) { setStatus('Error: ' + err.message); setLoading(false) }
   }
 
@@ -720,25 +784,67 @@ function App() {
                         placeholder="ipfs://Qm..."
                         value={newProject.ipfsHash}
                         onChange={e => setNewProject({ ...newProject, ipfsHash: e.target.value })} />
+                    
                     </div>
-                    <div className="columns">
-                      <div className="column">
-                        <label className="label has-text-grey-light">Funding Goal (ETH)</label>
-                        <input className="input" style={{ background: '#0f3460', color: 'white', border: '1px solid #333' }}
-                          type="number" min="1" value={newProject.fundingGoal}
-                          onChange={e => setNewProject({ ...newProject, fundingGoal: e.target.value })} />
-                      </div>
-                      <div className="column">
-                        <label className="label has-text-grey-light">Duration (days)</label>
-                        <input className="input" style={{ background: '#0f3460', color: 'white', border: '1px solid #333' }}
-                          type="number" min="1" value={newProject.duration}
-                          onChange={e => setNewProject({ ...newProject, duration: e.target.value })} />
-                      </div>
-                    </div>
-                    <button className={`button is-primary ${loading ? 'is-loading' : ''}`}
-                      onClick={handleCreateProject} disabled={!newProject.title || loading}>
-                      Create Project
-                    </button>
+
+<div className="columns">
+  <div className="column">
+    <label className="label has-text-grey-light">Funding Goal (ETH)</label>
+    <input className="input" style={{ background: '#0f3460', color: 'white', border: '1px solid #333' }}
+      type="number" min="1" value={newProject.fundingGoal}
+      onChange={e => setNewProject({ ...newProject, fundingGoal: e.target.value })} />
+  </div>
+  <div className="column">
+    <label className="label has-text-grey-light">Duration (days)</label>
+    <input className="input" style={{ background: '#0f3460', color: 'white', border: '1px solid #333' }}
+      type="number" min="1" value={newProject.duration}
+      onChange={e => setNewProject({ ...newProject, duration: e.target.value })} />
+  </div>
+</div>
+
+<label className="label has-text-grey-light">Milestones (optional — leave empty for no staged release)</label>
+{newProject.milestones.map((m, idx) => (
+  <div key={idx} className="box mb-2" style={{ background: '#0f3460', padding: '0.75rem' }}>
+    <div className="columns is-vcentered mb-0">
+      <div className="column">
+        <input className="input is-small" style={{ background: '#1a1a2e', color: 'white', border: '1px solid #333' }}
+          placeholder={`Milestone ${idx + 1} description`} value={m.description}
+          onChange={e => updateProjectMilestone(idx, 'description', e.target.value)} />
+      </div>
+      <div className="column is-narrow">
+        <div className="field has-addons">
+          <div className="control">
+            <input className="input is-small" style={{ background: '#1a1a2e', color: 'white', border: '1px solid #333', width: '100px' }}
+              type="number" step="0.001" min="0.001" placeholder="ETH" value={m.payment}
+              onChange={e => updateProjectMilestone(idx, 'payment', e.target.value)} />
+          </div>
+          <div className="control"><button className="button is-small is-static has-text-grey" style={{ background: '#1a1a2e' }}>ETH</button></div>
+        </div>
+      </div>
+      <div className="column is-narrow">
+        <button className="button is-small is-danger is-outlined" onClick={() => removeProjectMilestoneRow(idx)}>✕</button>
+      </div>
+    </div>
+  </div>
+))}
+<div className="is-flex is-justify-content-space-between is-align-items-center mt-3 mb-4">
+  <button className="button is-small is-outlined" style={{ borderColor: '#00d1b2', color: '#00d1b2' }} onClick={addProjectMilestoneRow}>+ Add Milestone</button>
+  {newProject.milestones.length > 0 && (
+    <div className="has-text-right">
+      <p className="has-text-grey-light is-size-7">Milestone total (must equal Funding Goal)</p>
+      <p className={`has-text-weight-bold is-size-5 ${parseFloat(projectMilestoneTotal) === parseFloat(newProject.fundingGoal) ? 'has-text-success' : 'has-text-danger'}`}>
+        {projectMilestoneTotal} ETH
+      </p>
+    </div>
+  )}
+</div>
+
+<button className={`button is-primary ${loading ? 'is-loading' : ''}`}
+  onClick={handleCreateProject}
+  disabled={!newProject.title || loading || (newProject.milestones.length > 0 && parseFloat(projectMilestoneTotal) !== parseFloat(newProject.fundingGoal))}>
+
+Create Project
+</button>
                   </div>
                 )}
 
@@ -777,15 +883,54 @@ function App() {
                             <p className="has-text-white is-size-7">{p.fundingRaised} / {p.fundingGoal} ETH</p>
                           </div>
                         </div>
-                        <progress className="progress is-primary mb-2" value={parseFloat(p.fundingRaised)} max={parseFloat(p.fundingGoal)} />
-                        {(p.status === 'Open' || p.status === 'In Progress') && (
-                          <div className="buttons">
-                            <button className={`button is-small is-success ${loading ? 'is-loading' : ''}`} onClick={() => handleFundProject(p.id)} disabled={loading}>💰 Fund {fundAmount} ETH</button>
-                            {(userRole === 'RESEARCHER' || userRole === 'ADMIN') && p.lead.toLowerCase() !== account.toLowerCase() && (
-                              <button className={`button is-small is-info ${loading ? 'is-loading' : ''}`} onClick={() => handleJoinProject(p.id)} disabled={loading}>🤝 Join as Collaborator</button>
-                            )}
-                          </div>
-                        )}
+
+<progress className="progress is-primary mb-2" value={parseFloat(p.fundingRaised)} max={parseFloat(p.fundingGoal)} />
+
+{p.milestoneCount > 0 && (
+  <button className="button is-small is-outlined mb-3" style={{ borderColor: '#555', color: '#aaa' }}
+    onClick={async () => { if (expandedProject === p.id) { setExpandedProject(null) } else { setExpandedProject(p.id); await loadProjectMilestones(p.id) } }}>
+    {expandedProject === p.id ? '▲ Hide Milestones' : `▼ View Milestones (${p.milestoneCount})`}
+  </button>
+)}
+
+{expandedProject === p.id && projectMilestones[p.id] && (
+  <div className="mb-3">
+    {projectMilestones[p.id].map(m => (
+      <div key={m.idx} className="box mb-2" style={{ background: '#1a1a2e', padding: '0.75rem' }}>
+        <div className="columns is-vcentered mb-0">
+          <div className="column">
+            <p className="has-text-white is-size-7 has-text-weight-bold">Milestone {m.idx + 1}: {m.description}</p>
+            <p className="has-text-grey-light is-size-7">{m.payment} ETH</p>
+            <div className="tags mt-1">
+              <span className={`tag is-small ${m.completed ? 'is-info' : 'is-dark'}`}>{m.completed ? '✓ Completed' : '○ Pending'}</span>
+              <span className={`tag is-small ${m.approved ? 'is-success' : 'is-dark'}`}>{m.approved ? '✓ Approved' : '○ Awaiting approval'}</span>
+              <span className={`tag is-small ${m.paid ? 'is-primary' : 'is-dark'}`}>{m.paid ? '💸 Paid' : '🔒 Locked'}</span>
+            </div>
+          </div>
+          <div className="column is-narrow">
+            {p.lead.toLowerCase() === account.toLowerCase() && !m.completed && !m.paid && (
+              <button className={`button is-small is-info ${actionLoading[`pcomplete-${p.id}-${m.idx}`] ? 'is-loading' : ''}`}
+                onClick={() => handleCompleteProjectMilestone(p.id, m.idx)} disabled={!!actionLoading[`pcomplete-${p.id}-${m.idx}`]}>✓ Mark Done</button>
+            )}
+            {m.completed && !m.paid && (
+              <button className={`button is-small is-success ${actionLoading[`papprove-${p.id}-${m.idx}`] ? 'is-loading' : ''}`}
+                onClick={() => handleApproveProjectMilestone(p.id, m.idx)} disabled={!!actionLoading[`papprove-${p.id}-${m.idx}`]}>💸 Approve & Release</button>
+            )}
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+)}
+
+{(p.status === 'Open' || p.status === 'In Progress') && (
+  <div className="buttons">
+    <button className={`button is-small is-success ${loading ? 'is-loading' : ''}`} onClick={() => handleFundProject(p.id)} disabled={loading}>💰 Fund {fundAmount} ETH</button>
+    {(userRole === 'RESEARCHER' || userRole === 'ADMIN') && p.lead.toLowerCase() !== account.toLowerCase() && (
+      <button className={`button is-small is-info ${loading ? 'is-loading' : ''}`} onClick={() => handleJoinProject(p.id)} disabled={loading}>🤝 Join as Collaborator</button>
+    )}
+  </div>
+)}
                       </div>
                     ))
                   )}
