@@ -11,7 +11,7 @@ import 'bulma/css/bulma.min.css'
 const REGISTRY_ADDRESS     = "0x9347B84753f475960C00365EC7F1C7Fd3a7989F2"
 const RESEARCH_ADDRESS     = "0x00db2513d3F30e365ff3a820C5ea014BC68eC28C"
 const ESCROW_ADDRESS       = "0xFFa916a6730c1221a3846bba88DAB7f2d7291248"
-const TRADING_ADDRESS      = "0x955ee365A00234369A6F3c92BE9cD5734c730aBB"
+const TRADING_ADDRESS      = "0x56b44fFA5C9078C12C402D7025f5d571a90A3C5d"
 const GAMIFICATION_ADDRESS = "0x1e4Bf31217dBecFB8f0361592BeF9d6F0c0bc33A"
 // ═══════════════════════════════════
 // ABIs
@@ -68,6 +68,14 @@ const TRADING_ABI = [
   "function providers(address) view returns (address addr, string name, string bio, string strategyIpfsHash, uint256 monthlyFee, uint256 subscriberCount, uint256 totalPnLBps, uint256 winRate, uint256 signalCount, bool verified, bool active, uint256 registeredAt)",
   "function pendingWithdrawal(address) view returns (uint256)",
   "function platformFeeBps() view returns (uint256)",
+  // Equiti integration
+  "function requestEquitiVerification(bytes32 equitiAccountHash, uint8 tier) external",
+  "function confirmEquitiVerification(address provider) external",
+  "function revokeEquitiVerification(address provider, string reason) external",
+  "function updateLiveTradingMonths(address provider, uint32 months) external",
+  "function submitComplianceAudit(address provider, string reportIpfsHash, bool passed) external",
+  "function auditSignal(uint256 signalId, bool compliant) external",
+  "function equitiVerifications(address) view returns (bool isEquitiVerified, bool verificationRequested, uint8 equitiTier, uint32 liveTradingMonths, uint40 lastAuditTimestamp, bytes32 equitiAccountHash, string auditReportIpfsHash)",
 ]
 
 const GAMIFICATION_ABI = [
@@ -107,6 +115,15 @@ const BADGE_NAMES = [
   { id: 6, name: "Platform Pioneer", icon: "🚀" },
 ]
 
+// Equiti verification tiers — thresholds must match _minSignalsForTier /
+// _minWinRateBpsForTier / _minLiveMonthsForTier in TradingIntelligence.sol
+const EQUITI_TIERS = {
+  1: { name: 'Bronze',   icon: '🥉', color: 'is-warning', minSignals: 10,  minWinRate: 0,  minMonths: 3  },
+  2: { name: 'Silver',   icon: '🥈', color: 'is-light',   minSignals: 50,  minWinRate: 55, minMonths: 6  },
+  3: { name: 'Gold',     icon: '🥇', color: 'is-warning', minSignals: 100, minWinRate: 60, minMonths: 12 },
+  4: { name: 'Platinum', icon: '💎', color: 'is-info',    minSignals: 200, minWinRate: 65, minMonths: 24 },
+}
+
 function getRoleName(roleHash) {
   for (const [name, hash] of Object.entries(ROLES)) {
     if (hash === roleHash) return name
@@ -120,6 +137,17 @@ function shortAddr(addr) {
 
 function formatPrice(scaled) {
   return (Number(scaled) / 100).toFixed(2)
+}
+
+function parseEquiti(raw) {
+  return {
+    isVerified:  raw.isEquitiVerified,
+    requested:   raw.verificationRequested,
+    tier:        Number(raw.equitiTier),
+    liveMonths:  Number(raw.liveTradingMonths),
+    lastAudit:   Number(raw.lastAuditTimestamp),
+    auditIpfs:   raw.auditReportIpfsHash,
+  }
 }
 
 function timeAgo(ts) {
@@ -177,6 +205,12 @@ function App() {
   const [tradingSubTab, setTradingSubTab] = useState('feed')
   const [newProvider, setNewProvider]     = useState({ name: '', bio: '', strategyHash: '', monthlyFee: '0.01' })
   const [newSignal, setNewSignal]         = useState({ asset: 'XAU/USD', direction: 'LONG', entryPrice: '', stopLoss: '', takeProfit: '', rationale: '' })
+
+  // Equiti verification state
+  const [myEquiti, setMyEquiti]           = useState(null) // my own EquitiVerification record
+  const [providerEquiti, setProviderEquiti] = useState({}) // addr -> EquitiVerification record
+  const [newEquitiReq, setNewEquitiReq]   = useState({ accountId: '', tier: '1' })
+  const [monthsInput, setMonthsInput]     = useState({}) // addr -> string, admin "set live months" field
 
   // Gamification state
   const [myProfile, setMyProfile]     = useState(null)
@@ -335,6 +369,7 @@ function App() {
       // Provider list
       const addrs = await trading.getProviderList()
       const loadedProviders = []
+      const loadedEquiti = {}
       for (const addr of addrs) {
         const p = await trading.providers(addr)
         if (!p.active) continue
@@ -350,8 +385,13 @@ function App() {
           verified:        p.verified,
           isSubscribed:    subbed,
         })
+        try {
+          const eq = await trading.equitiVerifications(addr)
+          if (eq.verificationRequested) loadedEquiti[addr] = parseEquiti(eq)
+        } catch (e) { /* no record / older contract version */ }
       }
       setProviders(loadedProviders)
+      setProviderEquiti(loadedEquiti)
 
       // My provider profile
       const me = await trading.providers(account)
@@ -365,6 +405,10 @@ function App() {
         })
         const payout = await trading.pendingWithdrawal(account)
         setPendingPayout(ethers.formatEther(payout))
+        try {
+          const myEq = await trading.equitiVerifications(account)
+          setMyEquiti(myEq.verificationRequested ? parseEquiti(myEq) : null)
+        } catch (e) { setMyEquiti(null) }
       }
 
       // Recent signals (last 20)
@@ -613,6 +657,58 @@ function App() {
       const tx = await trading.verifyProvider(addr); await tx.wait()
       setStatus(`✅ Provider ${shortAddr(addr)} verified!`); await loadTradingData(); setLoading(false)
     } catch (err) { setStatus('Error: ' + err.message); setLoading(false) }
+  }
+
+  // ── Handlers: Equiti ──
+  const handleRequestEquiti = async () => {
+    if (!trading || !newEquitiReq.accountId) return
+    try {
+      setLoading(true); setStatus('Requesting Equiti verification...')
+      const hash = ethers.keccak256(ethers.toUtf8Bytes(newEquitiReq.accountId))
+      const tx = await trading.requestEquitiVerification(hash, Number(newEquitiReq.tier))
+      await tx.wait()
+      setStatus('✅ Equiti verification requested — awaiting compliance review.')
+      setNewEquitiReq({ accountId: '', tier: '1' })
+      await loadTradingData(); setLoading(false)
+    } catch (err) { setStatus('Error: ' + err.message); setLoading(false) }
+  }
+
+  const handleConfirmEquiti = async (addr) => {
+    if (!trading) return
+    try {
+      setActionLoading(prev => ({ ...prev, [`equiti-confirm-${addr}`]: true }))
+      setStatus('Confirming Equiti verification...')
+      const tx = await trading.confirmEquitiVerification(addr); await tx.wait()
+      setStatus(`✅ Equiti verification confirmed for ${shortAddr(addr)}!`)
+      await loadTradingData()
+    } catch (err) { setStatus('Error: ' + err.message) }
+    finally { setActionLoading(prev => ({ ...prev, [`equiti-confirm-${addr}`]: false })) }
+  }
+
+  const handleRevokeEquiti = async (addr) => {
+    if (!trading) return
+    const reason = window.prompt('Reason for revoking Equiti verification:')
+    if (reason === null) return
+    try {
+      setActionLoading(prev => ({ ...prev, [`equiti-revoke-${addr}`]: true }))
+      setStatus('Revoking Equiti verification...')
+      const tx = await trading.revokeEquitiVerification(addr, reason || 'Not specified'); await tx.wait()
+      setStatus(`⚠️ Equiti verification revoked for ${shortAddr(addr)}.`)
+      await loadTradingData()
+    } catch (err) { setStatus('Error: ' + err.message) }
+    finally { setActionLoading(prev => ({ ...prev, [`equiti-revoke-${addr}`]: false })) }
+  }
+
+  const handleUpdateLiveMonths = async (addr, months) => {
+    if (!trading || months === '' || isNaN(Number(months))) return
+    try {
+      setActionLoading(prev => ({ ...prev, [`equiti-months-${addr}`]: true }))
+      setStatus('Updating live trading months...')
+      const tx = await trading.updateLiveTradingMonths(addr, Number(months)); await tx.wait()
+      setStatus(`✅ Live trading months updated for ${shortAddr(addr)}.`)
+      await loadTradingData()
+    } catch (err) { setStatus('Error: ' + err.message) }
+    finally { setActionLoading(prev => ({ ...prev, [`equiti-months-${addr}`]: false })) }
   }
 
   // ═══════════════════════════════════
@@ -1099,6 +1195,14 @@ Create Project
                           {myProviderData.verified
                             ? <span className="tag is-success is-small ml-2">✓ Verified</span>
                             : <span className="tag is-warning is-small ml-2">Pending Verification</span>}
+                          {myEquiti && myEquiti.isVerified && (
+                            <span className={`tag is-small ml-2 ${EQUITI_TIERS[myEquiti.tier].color}`}>
+                              {EQUITI_TIERS[myEquiti.tier].icon} Equiti {EQUITI_TIERS[myEquiti.tier].name}
+                            </span>
+                          )}
+                          {myEquiti && !myEquiti.isVerified && (
+                            <span className="tag is-link is-small ml-2">⏳ Equiti review pending</span>
+                          )}
                         </p>
                         <p className="has-text-grey-light is-size-7">{myProviderData.subscribers} subscribers · {myProviderData.signals} signals · {myProviderData.winRate.toFixed(1)}% win rate</p>
                       </div>
@@ -1110,6 +1214,59 @@ Create Project
                         )}
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {/* Equiti Verification Panel */}
+                {myProviderData && (
+                  <div className="box mb-4" style={{ background: '#16213e', border: '1px solid #209cee' }}>
+                    <h3 className="has-text-white has-text-weight-bold mb-2">🛡️ Equiti Verification</h3>
+                    {!myEquiti ? (
+                      <div>
+                        <p className="has-text-grey-light is-size-7 mb-3">
+                          Get a CMA-regulated compliance badge from Equiti. Each tier requires a minimum signal count, win rate, and months of live trading.
+                        </p>
+                        <div className="columns">
+                          <div className="column">
+                            <label className="label has-text-grey-light is-size-7">Equiti Account ID</label>
+                            <input className="input is-small" style={{ background: '#0f3460', color: 'white', border: '1px solid #333' }}
+                              placeholder="Your Equiti account ID (hashed before sending on-chain)"
+                              value={newEquitiReq.accountId}
+                              onChange={e => setNewEquitiReq({ ...newEquitiReq, accountId: e.target.value })} />
+                          </div>
+                          <div className="column is-narrow">
+                            <label className="label has-text-grey-light is-size-7">Tier</label>
+                            <div className="select is-small">
+                              <select value={newEquitiReq.tier} onChange={e => setNewEquitiReq({ ...newEquitiReq, tier: e.target.value })}
+                                style={{ background: '#0f3460', color: 'white', border: '1px solid #333' }}>
+                                {Object.entries(EQUITI_TIERS).map(([id, t]) => (
+                                  <option key={id} value={id}>{t.icon} {t.name} ({t.minSignals}+ signals)</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                        <button className={`button is-small is-info ${loading ? 'is-loading' : ''}`}
+                          onClick={handleRequestEquiti} disabled={!newEquitiReq.accountId || loading}>
+                          Request {EQUITI_TIERS[newEquitiReq.tier].name} Verification
+                        </button>
+                        <p className="has-text-grey-light is-size-7 mt-2">
+                          {EQUITI_TIERS[newEquitiReq.tier].name} requires {EQUITI_TIERS[newEquitiReq.tier].minSignals}+ signals
+                          {EQUITI_TIERS[newEquitiReq.tier].minWinRate > 0 && `, ${EQUITI_TIERS[newEquitiReq.tier].minWinRate}%+ win rate`}, and {EQUITI_TIERS[newEquitiReq.tier].minMonths}+ months live trading
+                          (checked again when Equiti confirms).
+                        </p>
+                      </div>
+                    ) : myEquiti.isVerified ? (
+                      <p className="has-text-success is-size-7">
+                        ✅ Verified at {EQUITI_TIERS[myEquiti.tier].icon} {EQUITI_TIERS[myEquiti.tier].name} tier ·
+                        {' '}{myEquiti.liveMonths} months live trading recorded ·
+                        {' '}last audit {myEquiti.lastAudit ? timeAgo(myEquiti.lastAudit) : 'never'}
+                      </p>
+                    ) : (
+                      <p className="has-text-warning is-size-7">
+                        ⏳ Verification requested at {EQUITI_TIERS[myEquiti.tier].icon} {EQUITI_TIERS[myEquiti.tier].name} tier — awaiting Equiti compliance confirmation.
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -1204,6 +1361,11 @@ Create Project
                               <p className="has-text-white has-text-weight-bold">
                                 {p.name}
                                 {p.verified && <span className="tag is-success is-small ml-2">✓ Verified</span>}
+                                {providerEquiti[p.addr]?.isVerified && (
+                                  <span className={`tag is-small ml-2 ${EQUITI_TIERS[providerEquiti[p.addr].tier].color}`}>
+                                    {EQUITI_TIERS[providerEquiti[p.addr].tier].icon} Equiti {EQUITI_TIERS[providerEquiti[p.addr].tier].name}
+                                  </span>
+                                )}
                               </p>
                               <p className="has-text-grey-light is-size-7">{p.bio}</p>
                               <p className="has-text-grey-light is-size-7 mt-1">
@@ -1497,6 +1659,69 @@ Create Project
                       <button className="button is-small is-info" onClick={() => { setActiveTab('trading'); setTradingSubTab('providers') }}>
                         Go to Provider List →
                       </button>
+                    </div>
+
+                    <div className="mt-4">
+                      <h3 className="has-text-white has-text-weight-bold mb-3">🛡️ Equiti Compliance Review</h3>
+                      {Object.keys(providerEquiti).length === 0 ? (
+                        <p className="has-text-grey is-size-7">No Equiti verification requests yet.</p>
+                      ) : (
+                        Object.entries(providerEquiti).map(([addr, eq]) => {
+                          const provider = providers.find(p => p.addr.toLowerCase() === addr.toLowerCase())
+                          const tierInfo = EQUITI_TIERS[eq.tier]
+                          return (
+                            <div key={addr} className="box mb-2" style={{ background: '#0f3460' }}>
+                              <div className="columns is-vcentered is-mobile">
+                                <div className="column">
+                                  <p className="has-text-white has-text-weight-bold">
+                                    {provider?.name || shortAddr(addr)}
+                                    <span className={`tag is-small ml-2 ${tierInfo.color}`}>{tierInfo.icon} {tierInfo.name} requested</span>
+                                    {eq.isVerified && <span className="tag is-success is-small ml-2">✓ Verified on-chain</span>}
+                                  </p>
+                                  <p className="has-text-grey-light is-size-7">
+                                    {shortAddr(addr)} · {eq.liveMonths} months live trading on record
+                                    {provider && ` · ${provider.signalCount} signals · ${provider.winRate.toFixed(1)}% win rate`}
+                                  </p>
+                                  <p className="has-text-grey-light is-size-7">
+                                    Tier needs: {tierInfo.minSignals}+ signals
+                                    {tierInfo.minWinRate > 0 && `, ${tierInfo.minWinRate}%+ win rate`}, {tierInfo.minMonths}+ months live trading
+                                  </p>
+                                </div>
+                                <div className="column is-narrow">
+                                  {!eq.isVerified && (
+                                    <div className="field has-addons mb-2">
+                                      <div className="control">
+                                        <input className="input is-small" style={{ width: '90px', background: '#16213e', color: 'white', border: '1px solid #333' }}
+                                          type="number" min="0" placeholder="months"
+                                          value={monthsInput[addr] ?? ''}
+                                          onChange={e => setMonthsInput(prev => ({ ...prev, [addr]: e.target.value }))} />
+                                      </div>
+                                      <div className="control">
+                                        <button className={`button is-small is-link ${actionLoading[`equiti-months-${addr}`] ? 'is-loading' : ''}`}
+                                          onClick={() => handleUpdateLiveMonths(addr, monthsInput[addr])}
+                                          disabled={!!actionLoading[`equiti-months-${addr}`]}>
+                                          Set months
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {!eq.isVerified ? (
+                                    <button className={`button is-small is-success ${actionLoading[`equiti-confirm-${addr}`] ? 'is-loading' : ''}`}
+                                      onClick={() => handleConfirmEquiti(addr)} disabled={!!actionLoading[`equiti-confirm-${addr}`]}>
+                                      Confirm
+                                    </button>
+                                  ) : (
+                                    <button className={`button is-small is-danger ${actionLoading[`equiti-revoke-${addr}`] ? 'is-loading' : ''}`}
+                                      onClick={() => handleRevokeEquiti(addr)} disabled={!!actionLoading[`equiti-revoke-${addr}`]}>
+                                      Revoke
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })
+                      )}
                     </div>
                   </div>
                 )}
