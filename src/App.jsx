@@ -398,6 +398,7 @@ function App() {
         setMyProviderData({
           name:        me.name,
           verified:    me.verified,
+          strategyIpfsHash: me.strategyIpfsHash,
           subscribers: Number(me.subscriberCount),
           signals:     Number(me.signalCount),
           winRate:     Number(me.winRate) / 100,
@@ -1270,7 +1271,7 @@ Create Project
                 )}
 
                 {myProviderData && (
-                  <UpdateStrategy trading={trading} account={account} />
+                  <UpdateStrategy trading={trading} account={account} currentHash={myProviderData?.strategyIpfsHash} />
                 )}
                 {/* Signal Feed */}
 {tradingSubTab === 'feed' && (
@@ -1743,3 +1744,4 @@ Create Project
 }
 
 export default App
+
