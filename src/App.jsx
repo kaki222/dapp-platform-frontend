@@ -7,11 +7,11 @@ import 'bulma/css/bulma.min.css'
 // ═══════════════════════════════════
 // CONTRACT ADDRESSES
 // ═══════════════════════════════════
-const REGISTRY_ADDRESS     = "0x9347B84753f475960C00365EC7F1C7Fd3a7989F2"
-const RESEARCH_ADDRESS     = "0x7F81775f6b8cbcc5D1eaFA7D3bF9f8a4887E927C"
-const ESCROW_ADDRESS       = "0x23826E012C953F18ef8E522D4b520dAf81494320"
-const TRADING_ADDRESS      = "0x56b44fFA5C9078C12C402D7025f5d571a90A3C5d"
-const GAMIFICATION_ADDRESS = "0x1e4Bf31217dBecFB8f0361592BeF9d6F0c0bc33A"
+const REGISTRY_ADDRESS     = "0xfc6f3bf47F60E42E8C1a736021dD0fEf3e5798Fd"
+const RESEARCH_ADDRESS     = "0xa9cB96Ff952a1E59C96D4a0a01bAb8Ab500875E2"
+const ESCROW_ADDRESS       = "0x3294Ccb218B2F3BDCa5eaaA7E030BF36D0958b0E"
+const TRADING_ADDRESS      = "0x69d8F4BE6E0dE28223dd99867d4a826fE5cd5700"
+const GAMIFICATION_ADDRESS = "0x309E2630B1424409492413b4d1aF85B73e66D0E8"
 // ═══════════════════════════════════
 // ABIs
 // ═══════════════════════════════════
@@ -40,6 +40,7 @@ const RESEARCH_ABI = [
 ]
 
 const ESCROW_ABI = [
+  "function owner() view returns (address)",
   "function withdraw()",
   "function pendingWithdrawal(address) view returns (uint256)",
   "function createEngagement(address consultant, string scopeHash, string[] milestoneDescs, uint256[] milestonePayments) payable returns (uint256)",
