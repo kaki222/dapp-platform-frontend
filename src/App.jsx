@@ -162,6 +162,8 @@ function timeAgo(ts) {
 // ═══════════════════════════════════
 function App() {
   const [account, setAccount]       = useState(null)
+  const [escrowOwner, setEscrowOwner]         = useState(null)
+  const [escrowPendingFees, setEscrowPendingFees] = useState('0')
   const [registry, setRegistry]     = useState(null)
   const [research, setResearch]     = useState(null)
   const [escrow, setEscrow]         = useState(null)
@@ -288,7 +290,8 @@ function App() {
           deadline:      new Date(Number(p.deadline) * 1000).toLocaleDateString(),
           status:        STATUS[p.status],
           collaborators: Number(p.collaboratorCount),
-           milestoneCount: Number(p.milestoneCount)
+           milestoneCount: Number(p.milestoneCount),
+          myContribution: ethers.formatEther(account ? await research.getContribution(i, account) : 0n)
         })
       }
       setProjects(loaded)
@@ -323,6 +326,19 @@ function App() {
       }
       setEngagements(loaded)
     } catch (err) { console.error("Load engagements error:", err) }
+  }, [escrow, account])
+
+  // Load Escrow Owner Fee Balance
+  const loadEscrowFees = useCallback(async () => {
+    if (!escrow || !account) return
+    try {
+      const ownerAddr = await escrow.owner()
+      setEscrowOwner(ownerAddr)
+      if (ownerAddr.toLowerCase() === account.toLowerCase()) {
+        const pending = await escrow.pendingWithdrawal(account)
+        setEscrowPendingFees(ethers.formatEther(pending))
+      }
+    } catch (err) { console.error("Load escrow fees error:", err) }
   }, [escrow, account])
 
   // ── Load Milestones ──
@@ -463,6 +479,7 @@ function App() {
 
   useEffect(() => { if (research) loadProjects() },                    [research, loadProjects])
   useEffect(() => { if (escrow && account) loadEngagements() },        [escrow, account, loadEngagements])
+  useEffect(() => { if (escrow && account) loadEscrowFees() },         [escrow, account, loadEscrowFees])
   useEffect(() => { if (trading && account) loadTradingData() },       [trading, account, loadTradingData])
   useEffect(() => { if (gamification && account) loadGamification() }, [gamification, account, loadGamification])
 
@@ -556,6 +573,15 @@ function App() {
     } catch (err) { setStatus('Error: ' + err.message); setLoading(false) }
   }
 
+  const handleWithdrawEscrowFees = async () => {
+    if (!escrow) return
+    try {
+      setLoading(true); setStatus('Withdrawing platform fees...')
+      const tx = await escrow.withdraw(); await tx.wait()
+      setStatus('Platform fees withdrawn!'); await loadEscrowFees(); setLoading(false)
+    } catch (err) { setStatus('Error: ' + err.message); setLoading(false) }
+  }
+
   // ── Handlers: Admin ──
   const handleGrantRole = async () => {
     if (!registry) return
@@ -601,6 +627,15 @@ function App() {
       setLoading(true); setStatus('Joining project...')
       const tx = await research.joinProject(projectId); await tx.wait()
       setStatus(`✅ Joined project #${projectId}!`); await loadProjects(); setLoading(false)
+    } catch (err) { setStatus('Error: ' + err.message); setLoading(false) }
+  }
+
+  const handleClaimRefund = async (projectId) => {
+    if (!research) return
+    try {
+      setLoading(true); setStatus('Claiming refund...')
+      const tx = await research.claimRefund(projectId); await tx.wait()
+      setStatus(`Refund claimed for project #${projectId}!`); await loadProjects(); setLoading(false)
     } catch (err) { setStatus('Error: ' + err.message); setLoading(false) }
   }
 
@@ -1027,6 +1062,13 @@ Create Project
     )}
   </div>
 )}
+{p.status === 'Cancelled' && parseFloat(p.myContribution) > 0 && (
+  <div className="buttons">
+    <button className={`button is-small is-success ${loading ? 'is-loading' : ''}`}
+      onClick={() => handleClaimRefund(p.id)} disabled={loading}>      Claim Refund ({p.myContribution} ETH)
+    </button>
+  </div>
+)}
                       </div>
                     ))
                   )}
@@ -1037,6 +1079,22 @@ Create Project
             {/* ── CONSULTANCY TAB ── */}
             {activeTab === 'consultancy' && (
               <div>
+                {escrowOwner && account && escrowOwner.toLowerCase() === account.toLowerCase() && (
+                  <div className="box mb-4" style={{ background: '#16213e', border: '1px solid #00d1b2' }}>
+                    <div className="columns is-vcentered">
+                      <div className="column">
+                        <p className="has-text-white has-text-weight-bold">Platform Fee Balance</p>
+                        <p className="has-text-grey-light is-size-7">2.5% fee withheld from each approved milestone, owner-withdrawable</p>
+                      </div>
+                      <div className="column is-narrow has-text-right">
+                        <p className="has-text-success has-text-weight-bold">{escrowPendingFees} ETH</p>
+                        {parseFloat(escrowPendingFees) > 0 && (
+                          <button className={`button is-small is-success mt-1 ${loading ? 'is-loading' : ''}`} onClick={handleWithdrawEscrowFees} disabled={loading}>Withdraw</button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="box mb-4" style={{ background: '#16213e', border: '1px solid #0f3460' }}>
                   <h2 className="subtitle has-text-white">💼 Create Engagement</h2>
                   <p className="has-text-grey-light is-size-7 mb-4">Lock ETH into escrow. Funds release milestone-by-milestone as you approve deliverables.</p>
