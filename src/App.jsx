@@ -1,4 +1,4 @@
-import ResolveSignal from './components/ResolveSignal';
+﻿import ResolveSignal from './components/ResolveSignal';
 import UpdateStrategy from './components/UpdateStrategy';
 import { useState, useEffect, useCallback } from 'react'
 import { ethers } from 'ethers'
@@ -8,8 +8,8 @@ import 'bulma/css/bulma.min.css'
 // CONTRACT ADDRESSES
 // ═══════════════════════════════════
 const REGISTRY_ADDRESS     = "0x9347B84753f475960C00365EC7F1C7Fd3a7989F2"
-const RESEARCH_ADDRESS     = "0x00db2513d3F30e365ff3a820C5ea014BC68eC28C"
-const ESCROW_ADDRESS       = "0xFFa916a6730c1221a3846bba88DAB7f2d7291248"
+const RESEARCH_ADDRESS     = "0x7F81775f6b8cbcc5D1eaFA7D3bF9f8a4887E927C"
+const ESCROW_ADDRESS       = "0x23826E012C953F18ef8E522D4b520dAf81494320"
 const TRADING_ADDRESS      = "0x56b44fFA5C9078C12C402D7025f5d571a90A3C5d"
 const GAMIFICATION_ADDRESS = "0x1e4Bf31217dBecFB8f0361592BeF9d6F0c0bc33A"
 // ═══════════════════════════════════
@@ -24,6 +24,7 @@ const REGISTRY_ABI = [
 ]
 
 const RESEARCH_ABI = [
+  "function claimRefund(uint256 projectId)",
   "function createProject(string title, string ipfsHash, uint256 fundingGoalEth, uint256 durationDays, string[] milestoneDescs, uint256[] milestonePaymentsEth) returns (uint256)",
   "function fundProject(uint256 projectId) payable",
   "function joinProject(uint256 projectId)",
@@ -39,6 +40,8 @@ const RESEARCH_ABI = [
 ]
 
 const ESCROW_ABI = [
+  "function withdraw()",
+  "function pendingWithdrawal(address) view returns (uint256)",
   "function createEngagement(address consultant, string scopeHash, string[] milestoneDescs, uint256[] milestonePayments) payable returns (uint256)",
   "function completeMilestone(uint256 engagementId, uint256 milestoneIdx)",
   "function approveMilestone(uint256 engagementId, uint256 milestoneIdx)",
