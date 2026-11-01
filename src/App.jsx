@@ -1234,13 +1234,14 @@ Create Project
                 {/* Sub-tabs */}
                 <div className="tabs is-toggle is-small mb-4">
                   <ul>
-                    {['feed', 'providers', 'publish', 'register'].map(t => (
+                    {['feed', 'providers', 'publish', 'register', 'gold'].map(t => (
                       <li key={t} className={tradingSubTab === t ? 'is-active' : ''}>
                         <a onClick={() => setTradingSubTab(t)} style={{ color: tradingSubTab === t ? '#fff' : '#aaa' }}>
                           {t === 'feed'      && '📡 Signal Feed'}
                           {t === 'providers' && '👥 Providers'}
                           {t === 'publish'   && '📤 Publish Signal'}
                           {t === 'register'  && '🎯 Become Provider'}
+                          {t === 'gold'      && '🪙 Gold Tool'}
                         </a>
                       </li>
                     ))}
@@ -1521,6 +1522,17 @@ Create Project
                         </button>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Gold Wave Trendline Tool (static page served from /public/gold) */}
+                {tradingSubTab === 'gold' && (
+                  <div className="box" style={{ background: '#16213e', border: '1px solid #0f3460', padding: 0, overflow: 'hidden' }}>
+                    <iframe
+                      src="/gold/trendline_tool.html"
+                      title="Gold Wave Trendline Tool"
+                      style={{ width: '100%', height: '1150px', border: 'none', background: '#f7f5f1' }}
+                    />
                   </div>
                 )}
 
