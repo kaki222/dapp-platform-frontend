@@ -13,7 +13,7 @@ export default function ProjectRecord({ src }) {
   }, [src])
 
   const box = { background: '#16213e', border: '1px solid #0f3460' }
-  const cell = { color: '#ddd', borderColor: '#333', fontSize: '0.8rem', verticalAlign: 'top' }
+  const cell = { color: '#ddd', borderColor: '#333', fontSize: '0.8rem', verticalAlign: 'top', textAlign: 'left' }
   const head = { ...cell, color: '#00d1b2' }
   if (err) return <div className="box mb-4" style={box}><p className="has-text-danger is-size-7">Record not loaded: {err}</p></div>
   if (!d) return null
@@ -21,7 +21,7 @@ export default function ProjectRecord({ src }) {
   const who = c => { const m = d.team.find(t => t.name && t.name.includes(c)); return m && !m.consent ? m.role.split(' - ')[0] : c }
 
   return (
-    <div className="box mb-4" style={box}>
+    <div className="box mb-4" style={{ ...box, textAlign: 'left' }}>
       <div className="is-flex is-justify-content-space-between is-align-items-start">
         <div>
           <p className="has-text-grey-light is-size-7">Research record · {p.code}</p>
@@ -31,6 +31,13 @@ export default function ProjectRecord({ src }) {
         <span className="tag is-info is-light">{p.status}</span>
       </div>
       <p className="has-text-grey-lighter is-size-7 mt-3">{p.abstract}</p>
+      {d.onchain && (
+        <p className="is-size-7 mt-2">
+          <span className="tag is-success is-light mr-2">On-chain</span>
+          <span className="has-text-grey-light">Project #{d.onchain.projectId} on {d.onchain.network}, registered {d.onchain.registered} · </span>
+          <a href={`https://sepolia.etherscan.io/address/${d.onchain.contract}`} target="_blank" rel="noreferrer" style={{ color: '#00d1b2' }}>ResearchCollaboration contract ↗</a>
+        </p>
+      )}
 
       <button className="button is-small is-outlined mt-3" style={{ borderColor: '#00d1b2', color: '#00d1b2' }} onClick={() => setOpen(!open)}>
         {open ? '▲ Hide record' : '▼ Team, provenance and milestones'}
@@ -55,11 +62,23 @@ export default function ProjectRecord({ src }) {
               <tbody>{d.provenance.map((r, i) => (
                 <tr key={i}>
                   <td style={cell}>{r.date}</td><td style={cell}>{r.event}</td><td style={cell}>{who(r.contributor)}</td>
-                  <td style={{ ...cell, fontFamily: 'monospace', wordBreak: 'break-all', minWidth: 160 }} title={r.sha256}>{r.sha256.slice(0, 16)}…</td>
+                  <td style={{ ...cell, fontFamily: 'monospace', wordBreak: 'break-all', minWidth: 160 }} title={r.sha256 || r.source}>{r.sha256 ? r.sha256.slice(0, 16) + '…' : 'see archive'}</td>
                 </tr>))}
               </tbody>
             </table>
           </div>
+
+          {d.archive && (<>
+            <p className="has-text-white has-text-weight-bold is-size-6 mb-2">Email archive 2020-21 (SHA-256 of original .msg files)</p>
+            <div className="table-container mb-4">
+              <table className="table is-narrow is-fullwidth" style={{ background: 'transparent' }}>
+                <tbody>{d.archive.map((a, i) => (
+                  <tr key={i}><td style={{ ...cell, textAlign: 'left' }}>{a.file}</td>
+                    <td style={{ ...cell, fontFamily: 'monospace', wordBreak: 'break-all', textAlign: 'left' }}>{a.sha256}</td></tr>))}
+                </tbody>
+              </table>
+            </div>
+          </>)}
 
           <p className="has-text-white has-text-weight-bold is-size-6 mb-2">Milestone plan</p>
           {d.milestones.map(m => (
