@@ -80,6 +80,18 @@ export default function ProjectRecord({ src }) {
             </div>
           </>)}
 
+          {d.attachments && (<>
+            <p className="has-text-white has-text-weight-bold is-size-6 mb-2">Attachments (SHA-256 of original files)</p>
+            <div className="table-container mb-4">
+              <table className="table is-narrow is-fullwidth" style={{ background: 'transparent' }}>
+                <tbody>{d.attachments.map((a, i) => (
+                  <tr key={i}><td style={cell}>{a.file}</td>
+                    <td style={{ ...cell, fontFamily: 'monospace', wordBreak: 'break-all' }}>{a.sha256}</td></tr>))}
+                </tbody>
+              </table>
+            </div>
+          </>)}
+
           <p className="has-text-white has-text-weight-bold is-size-6 mb-2">Milestone plan</p>
           {d.milestones.map(m => (
             <div key={m.id} className="box mb-2" style={{ background: '#0f3460', padding: '0.6rem 0.8rem' }}>
