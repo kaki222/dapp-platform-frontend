@@ -177,24 +177,28 @@
  "updated": "2026-11-02",
  "archive": [
   {
-   "file": "Fw: ReThink Brine Challenge-Round 2",
-   "sha256": "a29ea0aa11a7e71d7cf68015d14a56359e57cfd20812581957ca2ba15992317f"
-  },
-  {
-   "file": "Rethink brine Challenge ",
-   "sha256": "9fabc9907614dca1ba0e1881b393deff352f7d5c520a77be989a44cf8ea0b6dd"
-  },
-  {
-   "file": "ReThink Brine Challenge-Round 2",
-   "sha256": "a6ebe1cd4ea509ff6566bdf86a8c00f693d7e6aef354a20a0db76a9204f804a1"
-  },
-  {
    "file": "Re: From an Old University of Limerick Friend Amar - Research Partnership",
    "sha256": "ea34556d86c2c2d4f10b96bdbea709302fba921f0506e352dd647bb2bd08c28c"
   },
   {
-   "file": "Re: Fw: ReThink Brine Challenge-Round 2",
-   "sha256": "03b206b93717cf749e42c60d2bc3fc80f26782dd875396c0875dc8bf9b7597a4"
+   "file": "RE: Research Partnership",
+   "sha256": "f305df4f65991ed16cbde1c35c8c368aa86feeed1f5e883721694cc71a832941"
+  },
+  {
+   "file": "Re: Team Registration Re-think Brine",
+   "sha256": "598bc6c9ae08394d17751eeada935d7c4df55ebb32afc42aca1a729b5938279a"
+  },
+  {
+   "file": "RE: Team Registration Re-think Brine (5)",
+   "sha256": "615a3a38da519dd1ae0f0f2b604c3edd710d6bf8808ffc59bca43dbc726e7806"
+  },
+  {
+   "file": "RE: FW: Tentative Zoom Meeting Schedule Thursday 2nd of July",
+   "sha256": "25c05c120cddbed2bb09087b071b40f08e2b0847cba9cdeb269d30d5cdd04fa1"
+  },
+  {
+   "file": "Re: Tentative Zoom Meeting Schedule Thursday 2nd of July",
+   "sha256": "9957da7887efa2dd3c66ff294fc5bf7874d203206442b0ecfbbc9c6f79f03af9"
   },
   {
    "file": "RE: FW: Tentative Zoom Meeting Schedule Thursday 2nd of July (1)",
@@ -205,22 +209,6 @@
    "sha256": "e0eaef708b701162c878869f3c9b85173712ced92272710c0b3880711d273c26"
   },
   {
-   "file": "RE: FW: Tentative Zoom Meeting Schedule Thursday 2nd of July",
-   "sha256": "25c05c120cddbed2bb09087b071b40f08e2b0847cba9cdeb269d30d5cdd04fa1"
-  },
-  {
-   "file": "RE: Research Partnership",
-   "sha256": "f305df4f65991ed16cbde1c35c8c368aa86feeed1f5e883721694cc71a832941"
-  },
-  {
-   "file": "RE: Team Registration Re-think Brine (5)",
-   "sha256": "615a3a38da519dd1ae0f0f2b604c3edd710d6bf8808ffc59bca43dbc726e7806"
-  },
-  {
-   "file": "Re: Team Registration Re-think Brine",
-   "sha256": "598bc6c9ae08394d17751eeada935d7c4df55ebb32afc42aca1a729b5938279a"
-  },
-  {
    "file": "RE: Tentative Zoom Meeting Schedule Thursday 2nd of July (3)",
    "sha256": "89d7d033625b01b5b8738b883a94d30a94a81c46f5d0d2a9a653c79daf493db4"
   },
@@ -229,8 +217,32 @@
    "sha256": "02e522f98bb8e405516bfd4187c83a2664679c9e82aab60ebc62f29178dc239b"
   },
   {
-   "file": "Re: Tentative Zoom Meeting Schedule Thursday 2nd of July",
-   "sha256": "9957da7887efa2dd3c66ff294fc5bf7874d203206442b0ecfbbc9c6f79f03af9"
+   "file": "RE: ReThink Brine Challenge",
+   "sha256": "d0abd76a1fa5c32c7c2e6889f69c2c5368df5f76ffed5d2bf2c0ae1bda6b14e1"
+  },
+  {
+   "file": "Rethink brine Challenge ",
+   "sha256": "9fabc9907614dca1ba0e1881b393deff352f7d5c520a77be989a44cf8ea0b6dd"
+  },
+  {
+   "file": "RE: FW: ReThink Brine Challenge- ZOOM MEETING THIS FRIDAY",
+   "sha256": "68d1aa077139122b4774ef4f80c84e244c45e9446e9f4aac48cddcff443a5127"
+  },
+  {
+   "file": "Fw: ReThink Brine Challenge-Round 2",
+   "sha256": "a29ea0aa11a7e71d7cf68015d14a56359e57cfd20812581957ca2ba15992317f"
+  },
+  {
+   "file": "ReThink Brine Challenge-Round 2",
+   "sha256": "a6ebe1cd4ea509ff6566bdf86a8c00f693d7e6aef354a20a0db76a9204f804a1"
+  },
+  {
+   "file": "Re: Fw: ReThink Brine Challenge-Round 2",
+   "sha256": "03b206b93717cf749e42c60d2bc3fc80f26782dd875396c0875dc8bf9b7597a4"
+  },
+  {
+   "file": "Re: ReThink Brine Challenge-Round 2",
+   "sha256": "5856fb64cbf1361a4fdf2ed60d0d1f93b513b49edda74accd8b03f819c847889"
   }
  ],
  "onchain": {
@@ -240,5 +252,47 @@
   "registered": "2026-11-02",
   "fundingGoalEth": 7,
   "milestones": 7
- }
+ },
+ "attachments": [
+  {
+   "file": "Application overview.docx",
+   "sha256": "b9ecf7d69ee1cf5f3dd48302c4f69868f723afd23f6b67e1c05ee2a465c7e845"
+  },
+  {
+   "file": "Brine .pptx",
+   "sha256": "3badbc76544fb8709d437ef992353b33e59bb81255cf9bac666e17711e8ebfd1"
+  },
+  {
+   "file": "Brine-2.pptx",
+   "sha256": "d4ce37dcac07d022016654e680abf3c68dbd49a168e57d464dd0e249e6116199"
+  },
+  {
+   "file": "Brine -3.pptx",
+   "sha256": "e6ab166cc6c79a64f73c2a81c74df5a649f2c238226e8878af8a15e3c5c47ff8"
+  },
+  {
+   "file": "Brine -4.pptx",
+   "sha256": "2e84f99dabfb90f84463145c56cc7454fd6b347f4efdb8c5f0e0ac1f9ab07596"
+  },
+  {
+   "file": "Brine_1_DH.xlsx",
+   "sha256": "a95e85226ae39483801b76b548e555cc6b1ec4a43dd291e7a92fe4586ffda704"
+  },
+  {
+   "file": "Brine Project .xlsx",
+   "sha256": "fd3f7dc00c7f67a5320c4fff49e856cf7f03e42a0bf5bf5fed3dd850510e82bf"
+  },
+  {
+   "file": "Brine challenge Background.docx",
+   "sha256": "9bc5130e0bdb7a1c40e77d613bcba0adbfcd6315d851e036051b7e98a0669be2"
+  },
+  {
+   "file": "Brine challenge Background.odt",
+   "sha256": "2ebfd580d41a98bb1d4d358115407a4b5307a1adffa210fa692f659d3f46bc30"
+  },
+  {
+   "file": "Gantt Chart.xlsx",
+   "sha256": "79255467cf36510780c36695a9abee155b67f462e4b66fb961cc727ad9a8334e"
+  }
+ ]
 }
