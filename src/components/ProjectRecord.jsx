@@ -6,6 +6,7 @@ export default function ProjectRecord({ src }) {
   const [d, setD] = useState(null)
   const [open, setOpen] = useState(false)
   const [err, setErr] = useState('')
+  const [checks, setChecks] = useState([])
 
   useEffect(() => {
     fetch(src).then(r => { if (!r.ok) throw new Error(r.status); return r.json() })
@@ -15,6 +16,20 @@ export default function ProjectRecord({ src }) {
   const box = { background: '#16213e', border: '1px solid #0f3460' }
   const cell = { color: '#ddd', borderColor: '#333', fontSize: '0.8rem', verticalAlign: 'top', textAlign: 'left' }
   const head = { ...cell, color: '#00d1b2' }
+  const verify = async files => {
+    const known = {}
+    ;(d.provenance || []).forEach(r => { if (r.sha256) known[r.sha256] = `${r.date} · ${r.event}` })
+    ;(d.archive || []).forEach(a => { known[a.sha256] = `email: ${a.file}` })
+    ;(d.attachments || []).forEach(a => { known[a.sha256] = `attachment: ${a.file}` })
+    const out = []
+    for (const f of files) {
+      const buf = await f.arrayBuffer()
+      const h = [...new Uint8Array(await crypto.subtle.digest('SHA-256', buf))].map(b => b.toString(16).padStart(2, '0')).join('')
+      out.push({ name: f.name, hash: h, match: known[h] })
+    }
+    setChecks(out)
+  }
+
   if (err) return <div className="box mb-4" style={box}><p className="has-text-danger is-size-7">Record not loaded: {err}</p></div>
   if (!d) return null
   const p = d.project
@@ -91,6 +106,20 @@ export default function ProjectRecord({ src }) {
               </table>
             </div>
           </>)}
+
+          <p className="has-text-white has-text-weight-bold is-size-6 mb-2">Verify a file</p>
+          <div className="mb-4" style={{ border: '1px dashed #00d1b2', borderRadius: 6, padding: '0.8rem' }}
+            onDragOver={e => e.preventDefault()}
+            onDrop={e => { e.preventDefault(); verify([...e.dataTransfer.files]) }}>
+            <p className="has-text-grey-light is-size-7 mb-2">Drop original files here, or choose them. The fingerprint is computed in your browser; the file is never uploaded.</p>
+            <input type="file" multiple className="is-size-7 has-text-grey-light" onChange={e => verify([...e.target.files])} />
+            {checks.map((c, i) => (
+              <p key={i} className="is-size-7 mt-2" style={{ color: c.match ? '#48c78e' : '#f14668' }}>
+                {c.match ? '✅' : '❌'} {c.name} — {c.match ? `matches ${c.match}` : 'no match in this record'}
+                <br /><span style={{ fontFamily: 'monospace', color: '#888' }}>{c.hash}</span>
+              </p>
+            ))}
+          </div>
 
           <p className="has-text-white has-text-weight-bold is-size-6 mb-2">Milestone plan</p>
           {d.milestones.map(m => (
