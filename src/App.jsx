@@ -1,5 +1,6 @@
 ﻿import ResolveSignal from './components/ResolveSignal';
 import UpdateStrategy from './components/UpdateStrategy';
+import ProjectRecord from './components/ProjectRecord';
 import { useState, useEffect, useCallback } from 'react'
 import { ethers } from 'ethers'
 import 'bulma/css/bulma.min.css'
@@ -903,6 +904,7 @@ function App() {
             {/* ── RESEARCH TAB ── */}
             {activeTab === 'research' && (
               <div>
+                <ProjectRecord src="/research/brine-mine.json" />
                 {(userRole === 'RESEARCHER' || userRole === 'ADMIN') && (
                   <div className="box mb-4" style={{ background: '#16213e', border: '1px solid #0f3460' }}>
                     <h2 className="subtitle has-text-white">➕ Create Research Project</h2>

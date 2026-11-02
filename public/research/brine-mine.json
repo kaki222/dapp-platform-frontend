@@ -1,0 +1,160 @@
+{
+ "project": {
+  "code": "BRINE-MINE",
+  "title": "BRINE-MINE: Struvite-route mineral recovery and energy-reduced ZLD for desalination brine",
+  "lineage": "ReThink Brine Challenge 2020-21, team NGSTA (Next-Generation STrustainable Aqua)",
+  "abstract": "Partial struvite crystallisation (P/Mg 0.3-0.4) with Mg(OH)2 co-precipitation removes the divalent foulants from SWRO brine at ambient conditions, yielding a magnesium-phosphate cement precursor (MgHPO4 / newberyite + MgO after mild decomposition, NH3 recycled). The cleaned Na/K-Cl brine is then concentrated by high-pressure or series RO before evaporation, cutting evaporator thermal energy by ~55% (prelim. mass balance). Optional valorisation: NaCl, Solvay soda ash, CaCl2 road salt, potash.",
+  "status": "Bench proof of concept on synthetic brine; programme being reconstituted",
+  "network": "Ethereum Sepolia (testnet) - ResearchCollaboration 0x00db2513d3F30e365ff3a820C5ea014BC68eC28C",
+  "testnetNotice": "Funding on Sepolia is test ETH only; no real value."
+ },
+ "team": [
+  {
+   "name": "Dr. Amar Sahed",
+   "affiliation": "ADPoly / IAT",
+   "role": "PI - concept, team lead, process design, cement testing coordination",
+   "consent": true
+  },
+  {
+   "name": null,
+   "affiliation": null,
+   "role": "Co-PI - struvite crystallisation chemistry, bench experiments, economics",
+   "consent": false
+  },
+  {
+   "name": null,
+   "affiliation": null,
+   "role": "Process design and techno-economic evaluation",
+   "consent": false
+  },
+  {
+   "name": null,
+   "affiliation": null,
+   "role": "Cement physicochemical and mechanical characterisation; solar optimisation",
+   "consent": false
+  }
+ ],
+ "provenance": [
+  {
+   "date": "2020-05-12",
+   "event": "Concept and team formation: brine -> construction material; MgO/Mg(OH)2 route",
+   "contributor": "Amar Sahed",
+   "sha256": "40bfacf87a6d823818108bd8d6fbf741a9919b6181c1363fd5a335e24a086095"
+  },
+  {
+   "date": "2020-06-15",
+   "event": "Struvite route proposed for brine (novel); NH3 recycle by mild decomposition",
+   "contributor": "Co-PI",
+   "sha256": "40bfacf87a6d823818108bd8d6fbf741a9919b6181c1363fd5a335e24a086095"
+  },
+  {
+   "date": "2020-06-22",
+   "event": "Decision matrix, brine concentrator, carnallite / MgCl2 flowsheets; patent review",
+   "contributor": "Amar Sahed",
+   "sha256": "3d0b030ac77585a15daed5a037b8de011eda5209183dc12f2aee86a3ec6cae56"
+  },
+  {
+   "date": "2020-06-30",
+   "event": "Cement systems (Mg-O-Cl, Mg-phosphate), partial struvite ~1/3 PO4, potash option",
+   "contributor": "Co-PI",
+   "sha256": "3d0b030ac77585a15daed5a037b8de011eda5209183dc12f2aee86a3ec6cae56"
+  },
+  {
+   "date": "2020-07",
+   "event": "First synthetic-brine experiment; flowsheet slide",
+   "contributor": "Co-PI",
+   "sha256": "3badbc76544fb8709d437ef992353b33e59bb81255cf9bac666e17711e8ebfd1"
+  },
+  {
+   "date": "2020-07",
+   "event": "Synthetic brine recipe and economics, P/Mg 0.3 and 0.4",
+   "contributor": "Co-PI",
+   "sha256": "a95e85226ae39483801b76b548e555cc6b1ec4a43dd291e7a92fe4586ffda704"
+  },
+  {
+   "date": "2021-02",
+   "event": "Ksp table, work packages and costs, prelim mass balance (~55% thermal saving)",
+   "contributor": "Co-PI",
+   "sha256": "fd3f7dc00c7f67a5320c4fff49e856cf7f03e42a0bf5bf5fed3dd850510e82bf"
+  },
+  {
+   "date": "2021-02",
+   "event": "Background and significance text (RO/HPRO limits, struvite rationale)",
+   "contributor": "Co-PI",
+   "sha256": "9bc5130e0bdb7a1c40e77d613bcba0adbfcd6315d851e036051b7e98a0669be2"
+  },
+  {
+   "date": "2021-03-01",
+   "event": "Round 2 detailed proposal submitted (PI Sahed with co-investigators)",
+   "contributor": "Team NGSTA",
+   "sha256": "696eb713befa33f5b042d5e2d570ff34e73a6a317ba2b11d960883da522a614e"
+  }
+ ],
+ "milestones": [
+  {
+   "id": 1,
+   "title": "Bench kinetics on synthetic brine",
+   "basis": "WP2",
+   "deliverable": "Precipitation kinetics at P/Mg 0.3/0.4; XRD of solids; residual Mg, Ca, SO4",
+   "acceptance": "Mg 120 -> <=2 mM (>=97%); Ca and SO4 removal measured and reported",
+   "lead": "Co-PI",
+   "conditional": false
+  },
+  {
+   "id": 2,
+   "title": "Bench RO on cleaned brine",
+   "basis": "WP2",
+   "deliverable": "Series 80-bar / HPRO test; flux and fouling vs untreated brine",
+   "acceptance": "Retentate >15% Na/K/Cl solids with no divalent scaling",
+   "lead": "Sahed",
+   "conditional": false
+  },
+  {
+   "id": 3,
+   "title": "Cement product characterisation",
+   "basis": "WP5",
+   "deliverable": "MgHPO4/newberyite + MgO cement: setting time, compressive strength, hardness",
+   "acceptance": "Meets an agreed MgP cement reference spec",
+   "lead": "Co-investigator",
+   "conditional": false
+  },
+  {
+   "id": 4,
+   "title": "200 L crystalliser prototype with RO and evaporation",
+   "basis": "WP3",
+   "deliverable": "Continuous run, NH3 recycle demonstrated",
+   "acceptance": "Milestone 1 results reproduced at 200 L; NH3 recovery quantified",
+   "lead": "Sahed with co-investigator",
+   "conditional": false
+  },
+  {
+   "id": 5,
+   "title": "Mass/energy balance and process model - stage gate",
+   "basis": "WP8 + WP7",
+   "deliverable": "Validated model; thermal and electrical energy per m3; techno-economics at real product prices",
+   "acceptance": "Thermal saving >=50% confirmed incl. RO electricity; positive margin at MgO 0.4/kg",
+   "lead": "Sahed",
+   "conditional": false
+  },
+  {
+   "id": 6,
+   "title": "Pilot 2-4 m3/day",
+   "basis": "WP4",
+   "deliverable": "End-to-end pilot",
+   "acceptance": "Released only if Milestone 5 gate passed",
+   "lead": "Team",
+   "conditional": true
+  },
+  {
+   "id": 7,
+   "title": "NaCl valorisation (Solvay / CaCl2 / potash)",
+   "basis": "WP6",
+   "deliverable": "Bench tests on cleaned brine",
+   "acceptance": "Released only if funded",
+   "lead": "Co-PI",
+   "conditional": true
+  }
+ ],
+ "confidentialityNote": "Hashes only. No proprietary data, organiser brine analyses or proposal text are published.",
+ "updated": "2026-11-02"
+}
