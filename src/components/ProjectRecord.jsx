@@ -55,11 +55,23 @@ export default function ProjectRecord({ src }) {
               <tbody>{d.provenance.map((r, i) => (
                 <tr key={i}>
                   <td style={cell}>{r.date}</td><td style={cell}>{r.event}</td><td style={cell}>{who(r.contributor)}</td>
-                  <td style={{ ...cell, fontFamily: 'monospace', wordBreak: 'break-all', minWidth: 160 }} title={r.sha256}>{r.sha256.slice(0, 16)}…</td>
+                  <td style={{ ...cell, fontFamily: 'monospace', wordBreak: 'break-all', minWidth: 160 }} title={r.sha256 || r.source}>{r.sha256 ? r.sha256.slice(0, 16) + '…' : 'see archive'}</td>
                 </tr>))}
               </tbody>
             </table>
           </div>
+
+          {d.archive && (<>
+            <p className="has-text-white has-text-weight-bold is-size-6 mb-2">Email archive 2020-21 (SHA-256 of original .msg files)</p>
+            <div className="table-container mb-4">
+              <table className="table is-narrow is-fullwidth" style={{ background: 'transparent' }}>
+                <tbody>{d.archive.map((a, i) => (
+                  <tr key={i}><td style={{ ...cell, textAlign: 'left' }}>{a.file}</td>
+                    <td style={{ ...cell, fontFamily: 'monospace', wordBreak: 'break-all', textAlign: 'left' }}>{a.sha256}</td></tr>))}
+                </tbody>
+              </table>
+            </div>
+          </>)}
 
           <p className="has-text-white has-text-weight-bold is-size-6 mb-2">Milestone plan</p>
           {d.milestones.map(m => (

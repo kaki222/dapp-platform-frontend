@@ -39,25 +39,29 @@
    "date": "2020-05-12",
    "event": "Concept and team formation: brine -> construction material; MgO/Mg(OH)2 route",
    "contributor": "Amar Sahed",
-   "sha256": "40bfacf87a6d823818108bd8d6fbf741a9919b6181c1363fd5a335e24a086095"
+   "sha256": "ea34556d86c2c2d4f10b96bdbea709302fba921f0506e352dd647bb2bd08c28c",
+   "source": "email: Re: From an Old University of Limerick Friend Amar - Research Partnership"
   },
   {
    "date": "2020-06-15",
    "event": "Struvite route proposed for brine (novel); NH3 recycle by mild decomposition",
    "contributor": "Co-PI",
-   "sha256": "40bfacf87a6d823818108bd8d6fbf741a9919b6181c1363fd5a335e24a086095"
+   "sha256": "f305df4f65991ed16cbde1c35c8c368aa86feeed1f5e883721694cc71a832941",
+   "source": "email: RE: Research Partnership"
   },
   {
    "date": "2020-06-22",
    "event": "Decision matrix, brine concentrator, carnallite / MgCl2 flowsheets; patent review",
    "contributor": "Amar Sahed",
-   "sha256": "3d0b030ac77585a15daed5a037b8de011eda5209183dc12f2aee86a3ec6cae56"
+   "sha256": null,
+   "source": "email thread: Tentative Zoom Meeting Schedule Thursday 2nd of July (see archive)"
   },
   {
    "date": "2020-06-30",
    "event": "Cement systems (Mg-O-Cl, Mg-phosphate), partial struvite ~1/3 PO4, potash option",
    "contributor": "Co-PI",
-   "sha256": "3d0b030ac77585a15daed5a037b8de011eda5209183dc12f2aee86a3ec6cae56"
+   "sha256": null,
+   "source": "email thread: Tentative Zoom Meeting Schedule Thursday 2nd of July (see archive)"
   },
   {
    "date": "2020-07",
@@ -70,6 +74,20 @@
    "event": "Synthetic brine recipe and economics, P/Mg 0.3 and 0.4",
    "contributor": "Co-PI",
    "sha256": "a95e85226ae39483801b76b548e555cc6b1ec4a43dd291e7a92fe4586ffda704"
+  },
+  {
+   "date": "2020-09",
+   "event": "Team NGSTA registered for the ReThink Brine Challenge",
+   "contributor": "Amar Sahed",
+   "sha256": "598bc6c9ae08394d17751eeada935d7c4df55ebb32afc42aca1a729b5938279a",
+   "source": "email: Re: Team Registration Re-think Brine"
+  },
+  {
+   "date": "2020-11-18",
+   "event": "Shortlisted for Round 2",
+   "contributor": "Team NGSTA",
+   "sha256": "a6ebe1cd4ea509ff6566bdf86a8c00f693d7e6aef354a20a0db76a9204f804a1",
+   "source": "email: ReThink Brine Challenge-Round 2"
   },
   {
    "date": "2021-02",
@@ -155,6 +173,64 @@
    "conditional": true
   }
  ],
- "confidentialityNote": "Hashes only. No proprietary data, organiser brine analyses or proposal text are published.",
- "updated": "2026-11-02"
+ "confidentialityNote": "Hashes only: SHA-256 of the original Outlook .msg files and Office attachments as archived by the PI. No message content, organiser brine analyses or proposal text are published.",
+ "updated": "2026-11-02",
+ "archive": [
+  {
+   "file": "Fw: ReThink Brine Challenge-Round 2",
+   "sha256": "a29ea0aa11a7e71d7cf68015d14a56359e57cfd20812581957ca2ba15992317f"
+  },
+  {
+   "file": "Rethink brine Challenge ",
+   "sha256": "9fabc9907614dca1ba0e1881b393deff352f7d5c520a77be989a44cf8ea0b6dd"
+  },
+  {
+   "file": "ReThink Brine Challenge-Round 2",
+   "sha256": "a6ebe1cd4ea509ff6566bdf86a8c00f693d7e6aef354a20a0db76a9204f804a1"
+  },
+  {
+   "file": "Re: From an Old University of Limerick Friend Amar - Research Partnership",
+   "sha256": "ea34556d86c2c2d4f10b96bdbea709302fba921f0506e352dd647bb2bd08c28c"
+  },
+  {
+   "file": "Re: Fw: ReThink Brine Challenge-Round 2",
+   "sha256": "03b206b93717cf749e42c60d2bc3fc80f26782dd875396c0875dc8bf9b7597a4"
+  },
+  {
+   "file": "RE: FW: Tentative Zoom Meeting Schedule Thursday 2nd of July (1)",
+   "sha256": "7069b9430f513d516026da737670f13aa628efe46b79125c07f132436b96e3bd"
+  },
+  {
+   "file": "RE: FW: Tentative Zoom Meeting Schedule Thursday 2nd of July (2)",
+   "sha256": "e0eaef708b701162c878869f3c9b85173712ced92272710c0b3880711d273c26"
+  },
+  {
+   "file": "RE: FW: Tentative Zoom Meeting Schedule Thursday 2nd of July",
+   "sha256": "25c05c120cddbed2bb09087b071b40f08e2b0847cba9cdeb269d30d5cdd04fa1"
+  },
+  {
+   "file": "RE: Research Partnership",
+   "sha256": "f305df4f65991ed16cbde1c35c8c368aa86feeed1f5e883721694cc71a832941"
+  },
+  {
+   "file": "RE: Team Registration Re-think Brine (5)",
+   "sha256": "615a3a38da519dd1ae0f0f2b604c3edd710d6bf8808ffc59bca43dbc726e7806"
+  },
+  {
+   "file": "Re: Team Registration Re-think Brine",
+   "sha256": "598bc6c9ae08394d17751eeada935d7c4df55ebb32afc42aca1a729b5938279a"
+  },
+  {
+   "file": "RE: Tentative Zoom Meeting Schedule Thursday 2nd of July (3)",
+   "sha256": "89d7d033625b01b5b8738b883a94d30a94a81c46f5d0d2a9a653c79daf493db4"
+  },
+  {
+   "file": "RE: Tentative Zoom Meeting Schedule Thursday 2nd of July (4)",
+   "sha256": "02e522f98bb8e405516bfd4187c83a2664679c9e82aab60ebc62f29178dc239b"
+  },
+  {
+   "file": "Re: Tentative Zoom Meeting Schedule Thursday 2nd of July",
+   "sha256": "9957da7887efa2dd3c66ff294fc5bf7874d203206442b0ecfbbc9c6f79f03af9"
+  }
+ ]
 }
