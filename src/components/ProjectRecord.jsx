@@ -13,7 +13,7 @@ export default function ProjectRecord({ src }) {
   }, [src])
 
   const box = { background: '#16213e', border: '1px solid #0f3460' }
-  const cell = { color: '#ddd', borderColor: '#333', fontSize: '0.8rem', verticalAlign: 'top' }
+  const cell = { color: '#ddd', borderColor: '#333', fontSize: '0.8rem', verticalAlign: 'top', textAlign: 'left' }
   const head = { ...cell, color: '#00d1b2' }
   if (err) return <div className="box mb-4" style={box}><p className="has-text-danger is-size-7">Record not loaded: {err}</p></div>
   if (!d) return null
@@ -21,7 +21,7 @@ export default function ProjectRecord({ src }) {
   const who = c => { const m = d.team.find(t => t.name && t.name.includes(c)); return m && !m.consent ? m.role.split(' - ')[0] : c }
 
   return (
-    <div className="box mb-4" style={box}>
+    <div className="box mb-4" style={{ ...box, textAlign: 'left' }}>
       <div className="is-flex is-justify-content-space-between is-align-items-start">
         <div>
           <p className="has-text-grey-light is-size-7">Research record · {p.code}</p>
@@ -31,6 +31,13 @@ export default function ProjectRecord({ src }) {
         <span className="tag is-info is-light">{p.status}</span>
       </div>
       <p className="has-text-grey-lighter is-size-7 mt-3">{p.abstract}</p>
+      {d.onchain && (
+        <p className="is-size-7 mt-2">
+          <span className="tag is-success is-light mr-2">On-chain</span>
+          <span className="has-text-grey-light">Project #{d.onchain.projectId} on {d.onchain.network}, registered {d.onchain.registered} · </span>
+          <a href={`https://sepolia.etherscan.io/address/${d.onchain.contract}`} target="_blank" rel="noreferrer" style={{ color: '#00d1b2' }}>ResearchCollaboration contract ↗</a>
+        </p>
+      )}
 
       <button className="button is-small is-outlined mt-3" style={{ borderColor: '#00d1b2', color: '#00d1b2' }} onClick={() => setOpen(!open)}>
         {open ? '▲ Hide record' : '▼ Team, provenance and milestones'}

@@ -232,5 +232,13 @@
    "file": "Re: Tentative Zoom Meeting Schedule Thursday 2nd of July",
    "sha256": "9957da7887efa2dd3c66ff294fc5bf7874d203206442b0ecfbbc9c6f79f03af9"
   }
- ]
+ ],
+ "onchain": {
+  "projectId": 0,
+  "contract": "0xa9cB96Ff952a1E59C96D4a0a01bAb8Ab500875E2",
+  "network": "Sepolia",
+  "registered": "2026-11-02",
+  "fundingGoalEth": 7,
+  "milestones": 7
+ }
 }
