@@ -762,8 +762,8 @@ function render(){
     if(P){
       const X0=sx(P.t0), Y0=sy(P.v0), X1=sx(P.t1), Y1=sy(P.v1), Wd=X1-X0, Ht=Y0-Y1;
       g.appendChild(el("rect",{x:X0,y:Y1,width:Wd,height:Ht,fill:"none",stroke:"#64748b","stroke-width":1.6,"stroke-dasharray":"7 5"}));
-      g.appendChild(el("line",{x1:X1-0.25*Wd,y1:Y1,x2:X1,y2:Y1,stroke:"#b91c1c","stroke-width":5,"stroke-linecap":"butt"}));
-      g.appendChild(el("line",{x1:X1,y1:Y1,x2:X1,y2:Y1+0.25*Ht,stroke:"#b91c1c","stroke-width":5,"stroke-linecap":"butt"}));
+      g.appendChild(el("line",{x1:X1-0.25*Wd,y1:Y1,x2:X1,y2:Y1,stroke:"#b91c1c","stroke-width":3,"stroke-linecap":"butt",opacity:0.3}));
+      g.appendChild(el("line",{x1:X1,y1:Y1,x2:X1,y2:Y1+0.25*Ht,stroke:"#b91c1c","stroke-width":3,"stroke-linecap":"butt",opacity:0.3}));
       [-0.10,0.10].forEach(f=>g.appendChild(el("line",{x1:X0,y1:Y0,x2:X1,y2:Y1+f*Ht,stroke:"#64748b","stroke-width":1.2,"stroke-dasharray":"2 4"})));
       const lb = el("text",{x:X0+6,y:Y1-6,"font-size":12,"font-weight":700,fill:"#64748b"});
       lb.textContent = "Directional square " + (Wd/96).toFixed(1) + " in × " + (Ht/96).toFixed(1) + " in · termination zones 25% · wedge ±10%";
