@@ -129,6 +129,7 @@ svg.panning{cursor:grabbing;}
 body.embed .head, body.embed .panel, body.embed .hint, body.embed .tabbar, body.embed .toolstrip, body.embed .legendrow, body.embed .rail{display:none;}
 body.embed .chart-card{border:none; border-radius:0; background:transparent;}
 body.embed .layout{grid-template-columns:1fr;}
+.layout.wide{grid-template-columns:1fr;} .layout.wide > .panel{display:none;}
 body.embed .wrap{padding-block:8px; max-width:none;}
 body.embed{padding-left:8px; padding-right:8px;}
 
@@ -221,6 +222,7 @@ body.embed{padding-left:8px; padding-right:8px;}
             <button id="btnPan" title="Pan: drag to shift the date range (scroll zooms)">✋</button>
             <button id="btnReset" title="Reset view">⟲</button>
             <button id="btnLog" title="Log / linear price axis (Neely-style semi-log) for this timeframe" style="font-size:.78rem;font-weight:700">LOG</button>
+            <button id="btnBig" title="Bigger chart: click to cycle normal → wide (side panel hidden) → wide and tall" style="font-size:.95rem;font-weight:700">⤢</button>
             <button id="btnSplit" title="Split screen: study two timeframes at once. When split, click again to merge back to one window">◫</button>
           </div>
         </div>
@@ -642,10 +644,12 @@ function tagPlace(c){
   }
   return {x,y,dir,lvl,ph,pw,off,link,cy:y+dir*off};
 }
+let bigLevel = 0;      // 0 normal, 1 wide (side panel hidden), 2 wide and tall
 function syncSize(){
   const r = svg.getBoundingClientRect();
   const w = Math.max(420, Math.round(r.width));
   let h = __EMBED ? Math.max(300, window.innerHeight-12) : Math.max(380, Math.min(780, Math.round(w*0.56)));
+  if(bigLevel>=2 && !__EMBED) h = Math.max(h, Math.min(1500, Math.round(w*0.85)));   // wide + tall
   if(squareTabs[activeTab] && !__EMBED) h = Math.max(h, 960);   // room for an 8-inch (768 css px) square
   if(w!==W || h!==H){
     W = w; H = h;
@@ -689,18 +693,33 @@ function render(){
     svg.appendChild(t);
   }
   }
-  // x axis ticks (monthly-ish based on visible span)
-  const spanDays = (xDomain[1]-xDomain[0])/86400000;
-  const stepDays = spanDays>900?120:spanDays>400?60:spanDays>150?30:spanDays>60?14:7;
-  const stepMs = stepDays*86400000;
-  let tcur = Math.ceil(xDomain[0]/stepMs)*stepMs;
-  for(; tcur<=xDomain[1]; tcur+=stepMs){
-    const x = sx(tcur);
-    svg.appendChild(el("line",{x1:x,x2:x,y1:plot.y,y2:plot.y+plot.h,stroke:"var(--grid)","stroke-width":1}));
-    const t = el("text",{x:x,y:plot.y+plot.h+16,"text-anchor":"middle","class":"axis-label"});
-    const d = new Date(tcur);
-    t.textContent = d.toLocaleDateString('en-GB',{year:'2-digit',month:'short',timeZone:'UTC'});
-    svg.appendChild(t);
+  // x axis ticks: spacing chosen from the real pixel width so labels never collide
+  {
+    const msPerPx = (xDomain[1]-xDomain[0]) / plot.w;
+    const minPx = 78;                                    // room for one label ("Nov 26", "14 Nov")
+    const needMs = minPx * msPerPx, needDays = needMs/86400000;
+    const ticks = [];
+    if(needDays > 30){                                   // month-aligned ticks every k months
+      const k = [1,2,3,6,12,24,60].find(m=> m*30.4 >= needDays) || 60;
+      const d0 = new Date(xDomain[0]); let y = d0.getUTCFullYear(), m = d0.getUTCMonth();
+      m = Math.ceil(m/k)*k; if(m>=12){ y += Math.floor(m/12); m = m%12; }
+      for(let guard=0; guard<400; guard++){
+        const t = Date.UTC(y,m,1); if(t>xDomain[1]) break;
+        if(t>=xDomain[0]) ticks.push({t, txt:new Date(t).toLocaleDateString('en-GB',{year:'2-digit',month:'short',timeZone:'UTC'})});
+        m += k; if(m>=12){ y += Math.floor(m/12); m = m%12; }
+      }
+    } else {                                             // day-based ticks (7/14/30 days)
+      const stepDays = [1,2,5,7,14,30].find(sd=> sd >= needDays) || 30, stepMs = stepDays*86400000;
+      for(let t=Math.ceil(xDomain[0]/stepMs)*stepMs; t<=xDomain[1]; t+=stepMs)
+        ticks.push({t, txt:new Date(t).toLocaleDateString('en-GB',{day:'2-digit',month:'short',timeZone:'UTC'})});
+    }
+    ticks.forEach(tk=>{
+      const x = sx(tk.t);
+      svg.appendChild(el("line",{x1:x,x2:x,y1:plot.y,y2:plot.y+plot.h,stroke:"var(--grid)","stroke-width":1}));
+      const t = el("text",{x:x,y:plot.y+plot.h+16,"text-anchor":"middle","class":"axis-label"});
+      t.textContent = tk.txt;
+      svg.appendChild(t);
+    });
   }
 
   const g = el("g",{"clip-path":"url(#plotclip)"});
@@ -2158,6 +2177,15 @@ window.addEventListener("storage", e=>{
 // window drive whichever pane has the focus; each pane shows only its chart. ----
 function refreshLogBtn(){ btnLog.classList.toggle("active", isLog()); }
 btnLog.addEventListener("click", ()=>{ logTabs[activeTab] = !logTabs[activeTab]; saveState(); refreshLogBtn(); render(); });
+const btnBig = document.getElementById("btnBig");
+btnBig.addEventListener("click", ()=>{
+  bigLevel = (bigLevel+1)%3;
+  document.getElementById("mainLayout").classList.toggle("wide", bigLevel>=1);
+  btnBig.classList.toggle("active", bigLevel>=1);
+  btnBig.title = bigLevel===0 ? "Bigger chart: click to cycle normal → wide (side panel hidden) → wide and tall"
+               : bigLevel===1 ? "Wide (side panel hidden) — click for wide and tall" : "Wide and tall — click to return to normal";
+  render();
+});
 const splitWrap = document.getElementById("splitWrap");
 const chartrow = document.getElementById("chartrow");
 let splitBuilt = false, splitStack = false, splitOn = false, focusPane = null, mirrorTimer = null;
