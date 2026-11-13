@@ -846,7 +846,7 @@ function render(){
     g.appendChild(el("polyline",{points:pts.trim(),fill:"none",stroke:"var(--raw)","stroke-width":1.4,"vector-effect":"non-scaling-stroke"}));
   }
 
-  const REJECT_COLOR = "#d64545";
+  const REJECT_COLOR = "#e04a47";
   const UNCONFIRMED_COLOR = "#1a1a1a";
   function drawPivotSet(set, color, r, rejectable){
     const rej = rejectable ? (rejectedMono[activeTab] || []) : null;
@@ -860,7 +860,7 @@ function render(){
       const isLast = rejectable && i===set.length-1;
       const isRejected = rej && rej.includes(p.t);
       const c = isRejected ? REJECT_COLOR : (isLast ? UNCONFIRMED_COLOR : color);
-      g.appendChild(el("circle",{cx:sx(p.t),cy:sy(p.v),r:isRejected?r+1.2:r,fill:c,stroke:"var(--panel)","stroke-width":1}));
+      g.appendChild(el("circle",{cx:sx(p.t),cy:sy(p.v),r:isRejected?r+0.7:r,fill:c,stroke:"var(--panel)","stroke-width":1.5}));
     });
   }
   // intra-wave / dzigzag lines drawn BEFORE the pivot dots so the dots (and the manually
@@ -877,12 +877,12 @@ function render(){
       // Neely-style sequence, with the noise of the full raw reduction hidden
       const rej = rejectedMono[activeTab] || [];
       const validated = pivotSetA().filter(p=>rej.includes(p.t));
-      drawPivotSet(validated, REJECT_COLOR, 4.6, false);
+      drawPivotSet(validated, REJECT_COLOR, 3.5, false);
     } else {
-      drawPivotSet(pivotSetA(), getCss("--p3"), 4.2, rejectableTab);
+      drawPivotSet(pivotSetA(), getCss("--p3"), 3, rejectableTab);
     }
   }
-  if(show5) drawPivotSet(pivotSetB(), getCss("--p5"), 5.2, false);
+  if(show5) drawPivotSet(pivotSetB(), getCss("--p5"), 3.2, false);
 
   // forecast: purple projected pivots chained from the last validated (red) pivot of this tab
   const fc = forecasts[activeTab] || [];
@@ -916,7 +916,7 @@ function render(){
       validated.forEach(p=> pts += sx(p.t)+","+sy(p.v)+" ");
       g.appendChild(el("polyline",{points:pts.trim(),fill:"none",stroke:REJECT_COLOR,"stroke-width":1.6,opacity:.55,"vector-effect":"non-scaling-stroke"}));
       validated.forEach(p=>{
-        g.appendChild(el("circle",{cx:sx(p.t),cy:sy(p.v),r:4.2,fill:REJECT_COLOR,stroke:"var(--panel)","stroke-width":1,opacity:.85}));
+        g.appendChild(el("circle",{cx:sx(p.t),cy:sy(p.v),r:3,fill:REJECT_COLOR,stroke:"var(--panel)","stroke-width":1.4,opacity:.9}));
       });
     });
   }
