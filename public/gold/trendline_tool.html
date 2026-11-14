@@ -219,6 +219,7 @@ body.embed{padding-left:8px; padding-right:8px;}
           <label class="toggle"><input type="checkbox" id="toggleRaw" checked><span class="dot" style="background:var(--raw)"></span><span id="rawLabel">Weekly close</span></label>
           <label class="toggle" id="pivALabelWrap"><input type="checkbox" id="toggle3" checked><span class="dot" style="background:var(--p3)"></span><span id="pivALabel">3% pivots</span></label>
           <label class="toggle" id="pivBLabelWrap" style="display:none"><input type="checkbox" id="toggle5" checked><span class="dot" style="background:var(--p5)"></span><span id="pivBLabel">5% pivots</span></label>
+          <label class="toggle" id="ruleTagWrap" title="Neely Chapter 3: Retracement Rule of every monowave (m2/m1 and m0/m1 found with the Rules of Observation), e.g. R-2a. RN = Rule of Neutrality candidate (flatter than 45° on a square-fitted chart)"><input type="checkbox" id="toggleRules"><span class="dot" style="background:#92400e"></span><span>Rules (Ch.3)</span></label>
           <label class="toggle" id="redOnlyLabelWrap" style="display:none"><input type="checkbox" id="toggleRedOnly"><span class="dot" style="background:#d64545"></span><span>Validated (red) only</span></label>
         </div>
         <div class="chartrow" id="chartrow">
@@ -253,6 +254,8 @@ body.embed{padding-left:8px; padding-right:8px;}
       <div class="linelist" id="levelList"></div>
       <h2>Marked pivots</h2>
       <div class="linelist" id="pivotMarkList"></div>
+      <h2>Retracement rules (Ch.3)</h2>
+      <div class="linelist" id="ruleList" style="font-size:12px"></div>
       <button id="btnClear" style="align-self:flex-start">Clear all</button>
     </div>
   </div>
@@ -347,6 +350,172 @@ btnOrigin.addEventListener("click", ()=>{
 });
 btnRay45.addEventListener("click", ()=>{ ray45Tabs[activeTab] = !ray45Tabs[activeTab]; saveState(); refreshRayBtn(); render(); });
 btnTagLevel.addEventListener("click", ()=>{ tagLevel = tagLevel===1 ? 2 : 1; btnTagLevel.classList.toggle("active", tagLevel===1); });
+/*NEELY_CH3_START*/
+// ---------------------------------------------------------------------------------------------
+// Neely Method, Chapter 3 "Preliminary Analysis" — engine, phase 1
+//   * Rules of Observation (Figs 3-19 .. 3-22): m0 / m2 (monowave groups mg0, mg2) for any m1
+//   * Retracement Rules: Rule Identification 1-7, Conditions a-f, Categories i-iii (Rule 4)
+//   * Initial Structure-label list of each Rule / Condition (head of each Pre-Constructive section)
+//   * Rule of Neutrality test (45-degree test on the screen scale)
+// Source: the scanned original chapter (pp. 3-14 .. 3-31, 3-32 .. 3-60). The paragraph-by-paragraph
+// Pre-Constructive logic that narrows each list is NOT in this file yet (phase 2).
+// Pivots: array of {t, v} (t = ms time, or bar index), strictly alternating high/low.
+// ---------------------------------------------------------------------------------------------
+const NEELY3 = (function(){
+  const RN_LEEWAY = 0.04;                       // "61.8% = about 58% to 66%" (Ch.3, measurement rules)
+  const R3_BAND = [0.58, 0.66];
+
+  // make the dot list strictly alternating (drop zero-length legs, merge same-direction runs)
+  function clean(p){
+    const out = [];
+    for(const q of p){
+      if(!out.length){ out.push(q); continue; }
+      const last = out[out.length-1];
+      if(q.v === last.v) continue;
+      if(out.length === 1){ out.push(q); continue; }
+      const prev = out[out.length-2];
+      const dirPrev = last.v - prev.v, dirNew = q.v - last.v;
+      if((dirPrev>0) === (dirNew>0)){ out[out.length-1] = q; }   // same direction continues: the later dot replaces
+      else out.push(q);
+    }
+    return out;
+  }
+
+  // Rules of Observation for the group a..b (pivot indexes; b-a is odd; a single monowave has b=a+1)
+  // returns {m0Start, m2End, m0Done, m2Done}; m0Start/m2End are pivot indexes (null if not yet confirmed)
+  function observe(p, a, b){
+    const up = p[b].v > p[a].v;
+    const H = Math.max(p[a].v, p[b].v), L = Math.min(p[a].v, p[b].v);
+    let m2End = null;
+    // --- m2: forward from b (Fig 3-20a)
+    for(let k=b+1; k<p.length; k++){
+      if(up){
+        if(p[k].v < L){ m2End = k; break; }                       // low of m1 broken first: the first turn after the break ends m2
+        if(p[k].v > H){                                           // high of m1 broken: m2 = lowest point between the high of m1 and the newest high
+          let j = null;
+          for(let q=b+1; q<k; q++) if(j===null || p[q].v < p[j].v) j = q;
+          m2End = j; break;
+        }
+      } else {
+        if(p[k].v > H){ m2End = k; break; }
+        if(p[k].v < L){
+          let j = null;
+          for(let q=b+1; q<k; q++) if(j===null || p[q].v > p[j].v) j = q;
+          m2End = j; break;
+        }
+      }
+    }
+    // --- m0: backward from a (Fig 3-20b)
+    let m0Start = null;
+    for(let j=a-1; j>=0; j--){
+      if(up){
+        if(p[j].v < L){                                           // an older, lower low: m0 = highest point between that low and the start of m1
+          let q0 = null;
+          for(let q=j+1; q<a; q++) if(q0===null || p[q].v > p[q0].v) q0 = q;
+          m0Start = q0===null ? j : q0; break;
+        }
+        if(p[j].v > H){ m0Start = j; break; }                     // high of m1 broken during the formation of m0
+      } else {
+        if(p[j].v > H){
+          let q0 = null;
+          for(let q=j+1; q<a; q++) if(q0===null || p[q].v < p[q0].v) q0 = q;
+          m0Start = q0===null ? j : q0; break;
+        }
+        if(p[j].v < L){ m0Start = j; break; }
+      }
+    }
+    return {m0Start, m2End, up, H, L};
+  }
+
+  function ruleOf(r){                                            // r = m2 / m1
+    if(r >= R3_BAND[0] && r <= R3_BAND[1]) return 3;
+    if(r < 0.382) return 1;
+    if(r < 0.618) return 2;
+    if(r < 1) return 4;
+    if(r < 1.618) return 5;
+    if(r <= 2.618) return 6;
+    return 7;
+  }
+  function condOf(rule, c){                                      // c = m0 / m1 ; boundaries as printed in the book
+    if(rule===1) return c<0.618 ? "a" : c<1 ? "b" : c<=1.618 ? "c" : "d";
+    if(rule===2) return c<0.382 ? "a" : c<0.618 ? "b" : c<1 ? "c" : c<=1.618 ? "d" : "e";
+    if(rule===3) return c<0.382 ? "a" : c<0.618 ? "b" : c<1 ? "c" : c<1.618 ? "d" : c<=2.618 ? "e" : "f";
+    if(rule===4) return c<0.382 ? "a" : c<1 ? "b" : c<1.618 ? "c" : c<=2.618 ? "d" : "e";
+    return c<1 ? "a" : c<1.618 ? "b" : c<=2.618 ? "c" : "d";     // Rules 5, 6, 7
+  }
+  function catOf(m3m2){                                          // Rule 4 only: m3 / m2
+    if(m3m2 < 1) return null;
+    if(m3m2 < 1.618) return "i";
+    if(m3m2 <= 2.618) return "ii";
+    return "iii";
+  }
+
+  // initial Structure-label lists printed at the head of each Rule / Condition section
+  const LISTS = {
+    "1":  ":5 / (:c3) / (:x:c3) / [:sL3] / [:s5]",
+    "2":  ":5 / (:sL3) / [:c3] / [:s5]",
+    "3":  ":F3 / :c3 / :s5 / :5 / (:sL3) / [:L5]",
+    "4a": ":F3 / :c3 / :s5 / [:sL3]",
+    "4b": ":F3 / :c3 / :s5 / (:sL3) / (x:c3) / [:L5]",
+    "4c": ":c3 / (:F3) / (x:c3)",
+    "4d": ":F3 / (:c3) / (x:c3)",
+    "4e": ":F3 / (x:c3) / (:c3)",
+    "5":  "F3 / c3 / 5 / L5 / (L3)",
+    "6":  "any Structure possible (if no description applies use the Position Indicator Sequences)",
+    "7":  "any Structure possible (if no description applies use the Position Indicator Sequences)"
+  };
+  function listFor(rule, cond){
+    if(rule===4) return LISTS["4"+cond];
+    return LISTS[String(rule)];
+  }
+  const RULE_TEXT = {
+    1:"m2 < 38.2% of m1", 2:"m2 38.2–61.8% of m1", 3:"m2 = 61.8% of m1 (58–66%)",
+    4:"m2 61.8–100% of m1", 5:"m2 100–161.8% of m1", 6:"m2 161.8–261.8% of m1", 7:"m2 > 261.8% of m1"
+  };
+
+  // analyse monowave i (pivot i -> pivot i+1) as m1
+  function analyse(p, i){
+    const a = i, b = i+1;
+    const m1 = Math.abs(p[b].v - p[a].v);
+    const ob = observe(p, a, b);
+    const out = {i, a, b, up: ob.up, m1, m0Start: ob.m0Start, m2End: ob.m2End};
+    out.mg0 = ob.m0Start===null ? null : (a - ob.m0Start);          // number of monowaves in mg0
+    out.mg2 = ob.m2End===null ? null : (ob.m2End - b);
+    if(ob.m2End===null){ out.pending = true; return out; }           // m2 not yet confirmed: no Rule yet
+    out.m2 = Math.abs(p[ob.m2End].v - p[b].v);
+    out.r2 = out.m2 / m1;
+    out.rule = ruleOf(out.r2);
+    if(ob.m0Start!==null){
+      out.m0 = Math.abs(p[a].v - p[ob.m0Start].v);
+      out.r0 = out.m0 / m1;
+      out.cond = condOf(out.rule, out.r0);
+    }
+    if(out.rule===4){                                                // Category needs m3 (m2 observed as the current wave)
+      const ob2 = observe(p, b, ob.m2End);
+      if(ob2.m2End!==null){
+        out.m3 = Math.abs(p[ob2.m2End].v - p[ob.m2End].v);
+        out.r3 = out.m3 / out.m2;
+        out.cat = catOf(out.r3);
+      }
+    }
+    out.id = "R-" + out.rule + (out.cond||"?") + (out.cat ? "-" + out.cat : "");
+    out.list = out.cond ? listFor(out.rule, out.cond) : listFor(out.rule, "a");
+    return out;
+  }
+  function analyseAll(p){
+    const q = clean(p), res = [];
+    for(let i=0; i<q.length-1; i++) res.push(analyse(q, i));
+    return {p:q, res};
+  }
+
+  // Rule of Neutrality (Ch.3 pp. 3-9..3-13): on a chart scaled by the Rule of Proportion, a monowave flatter than 45 degrees
+  // (|dy| < |dx| in screen units) is "horizontal": consider the Rule. dxPx/dyPx = screen size of the monowave.
+  function neutralityFlag(dxPx, dyPx){
+    return Math.abs(dyPx) < Math.abs(dxPx);
+  }
+  return {clean, observe, analyse, analyseAll, ruleOf, condOf, catOf, listFor, neutralityFlag, RULE_TEXT, LISTS};
+})();
+/*NEELY_CH3_END*/
 const NS = "http://www.w3.org/2000/svg";
 let W = 1180, H = 620;
 const M = {l:74, r:22, t:16, b:38};
@@ -406,6 +575,7 @@ let square2Tabs = {};  // {[tab]: true} show the second (non-directional) square
 let squareEnd = {};   // {[tab]: {t,v}} user-chosen top-right corner of the Neely square (default: highest point)
 let ndSquares = [];   // [{id,tab,t0,v0,t1,v1}] non-directional squares: start top-left, end on the right edge at the 50% line
 let squareTabs = {}; // {[tab]: true} tabs fitted to Neely's square: start (Neely start) bottom-left, highest point top-right
+let showRulesFlag = false;
 let yOverride = {};  // {[tab]: [lo,hi]} fixed price range while the square fit is on (not saved)
 let ray45Tabs = {}; // {[tab]: true} tabs showing the 45-degree ray from the Neely start (26-Sep-2022, 1632.15)
 let logTabs = {}; // {[tab]: true} tabs shown on a logarithmic (semi-log, Neely-style) price axis
@@ -943,6 +1113,41 @@ function render(){
     }
   }
   if(show5) drawPivotSet(pivotSetB(), getCss("--p5"), 3.2, false);
+
+  // ---- Neely Chapter 3: Retracement Rule tags at the end of each monowave (m1) ----
+  if(showRulesFlag){
+    const src = (rejectableTab && redOnly) ? pivotSetA().filter(p=>(rejectedMono[activeTab]||[]).includes(p.t)) : pivotSetA();
+    const AN = NEELY3.analyseAll(src.map(p=>({t:p.t, v:p.v, d:p.d})));
+    const fitted = !!squareTabs[activeTab];
+    let drawn = 0;
+    const listRows = [];
+    AN.res.forEach(r=>{
+      const pb = AN.p[r.b], pa = AN.p[r.a];
+      if(!r.pending && pb.t>=xDomain[0] && pb.t<=xDomain[1] && drawn<160){
+        const x = sx(pb.t), y = sy(pb.v), top = !r.up;                     // end of an up monowave is a high
+        const lab = el("text",{x:x,y:r.up? y-9 : y+17,"text-anchor":"middle","font-size":10,"font-weight":700,fill:"#92400e",
+          stroke:"var(--panel)","stroke-width":3,"paint-order":"stroke"});
+        lab.textContent = r.id;
+        const ttl = document.createElementNS(NS,"title");
+        ttl.textContent = r.id+" · "+NEELY3.RULE_TEXT[r.rule]+" · m2/m1 "+Math.round(r.r2*100)+"%"+(r.r0!==undefined?" · m0/m1 "+Math.round(r.r0*100)+"%":"")+" · mg0="+r.mg0+" mg2="+r.mg2+(r.cat?" · m3/m2 "+Math.round(r.r3*100)+"%":"")+"\nStructure list: "+r.list;
+        lab.appendChild(ttl);
+        g.appendChild(lab); drawn++;
+      }
+      if(fitted && pb.t>=xDomain[0] && pb.t<=xDomain[1]){
+        const dx = Math.abs(sx(pb.t)-sx(pa.t)), dy = Math.abs(sy(pb.v)-sy(pa.v));
+        if(NEELY3.neutralityFlag(dx,dy) && dx>2){
+          g.appendChild(el("circle",{cx:sx(pb.t),cy:sy(pb.v),r:7,fill:"none",stroke:"#92400e","stroke-width":1.3}));
+        }
+      }
+    });
+    // right-hand list: the newest monowaves
+    AN.res.slice(-12).reverse().forEach(r=>{
+      const pa=AN.p[r.a], pb=AN.p[r.b];
+      listRows.push('<div style="margin:2px 0;border-bottom:1px solid var(--grid);padding-bottom:2px"><b>'+(r.pending?'m2 not yet confirmed':r.id)+'</b> · '+fmtPrice(pa.v)+' → '+fmtPrice(pb.v)+
+        (r.pending?'':' · m2 '+Math.round(r.r2*100)+'%'+(r.r0!==undefined?' · m0 '+Math.round(r.r0*100)+'%':' · m0 ?')+' · mg2='+r.mg2+'<br><span style="color:var(--muted,#666)">'+r.list+'</span>')+'</div>');
+    });
+    const rl = document.getElementById("ruleList"); if(rl) rl.innerHTML = listRows.join("") || "No monowaves.";
+  } else { const rl = document.getElementById("ruleList"); if(rl) rl.innerHTML = '<span style="color:#888">Tick “Rules (Ch.3)” above the chart.</span>'; }
 
   // forecast: purple projected pivots chained from the last validated (red) pivot of this tab
   const fc = forecasts[activeTab] || [];
@@ -1691,6 +1896,7 @@ const pivALabel = document.getElementById("pivALabel");
 const pivBLabel = document.getElementById("pivBLabel");
 const pivBLabelWrap = document.getElementById("pivBLabelWrap");
 const redOnlyLabelWrap = document.getElementById("redOnlyLabelWrap");
+document.getElementById("toggleRules").addEventListener("change", e=>{ showRulesFlag = e.target.checked; render(); });
 
 // the monthly starting-point candidate (Feb 2025, center of the full 2001-2026 range) —
 // the Daily tab opens zoomed around this date by default, Neely-style (~60 daily points, ~8in of chart)
