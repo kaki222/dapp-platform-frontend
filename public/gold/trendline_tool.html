@@ -223,6 +223,7 @@ body.embed{padding-left:8px; padding-right:8px;}
           <label class="toggle" id="ruleLabWrap" title="Show the Pre-Constructive Structure labels (Rules 2 and 5 coded) next to each R-tag"><input type="checkbox" id="toggleRuleLab"><span>labels</span></label>
           <label class="toggle" id="rnWrap" title="Rule of Neutrality, automatic: finds sideways periods (inside the 45-degree cone of the square-fitted chart), classes them Aspect 1 or 2 and shows what to do"><input type="checkbox" id="toggleRN"><span>RN auto</span></label>
           <select id="rnA2" title="what to do with Aspect 2 periods when you press apply" style="font-size:12px"><option value="three">A2: three segments</option><option value="merge">A2: one monowave</option><option value="skip">A2: skip</option></select>
+          <button type="button" id="btnRNUndo" class="toggle" style="cursor:pointer" title="Restore the red pivots as they were before the last apply RN">undo RN</button>
           <button type="button" id="btnRNApply" class="toggle" style="cursor:pointer" title="Remove the suggested dots from your red (validated) pivots">apply RN</button>
           <button type="button" id="btnM1View" class="toggle" style="cursor:pointer" title="Zoom on one monowave m1 with its m(-4)..m0 and m2..m4 neighbours (click an R-tag to choose it)">◎ m1 view</button>
           <label class="toggle" id="ruleMinWrap" title="Hide tags of monowaves smaller than this % of the visible price range"><span>min size</span><input type="range" id="ruleMin" min="0" max="15" step="0.5" value="0" style="width:80px"><span id="ruleMinVal">0%</span></label>
@@ -2276,6 +2277,14 @@ const pivBLabelWrap = document.getElementById("pivBLabelWrap");
 const redOnlyLabelWrap = document.getElementById("redOnlyLabelWrap");
 document.getElementById("toggleRules").addEventListener("change", e=>{ showRulesFlag = e.target.checked; render(); });
 window.__render = render; window.__NEELY3 = NEELY3; window.__fmtPrice = fmtPrice; window.__setRules = v=>{ showRulesFlag = v; };
+document.getElementById("btnRNUndo").addEventListener("click", ()=>{
+  let s=null; try{ s = localStorage.getItem("goldRNUndo_"+activeTab); }catch(e){}
+  if(!s){ alert("Nothing to undo on this tab."); return; }
+  if(!confirm("Restore the red pivots of this tab to their state before the last apply RN?")) return;
+  rejectedMono[activeTab] = JSON.parse(s);
+  try{ localStorage.removeItem("goldRNUndo_"+activeTab); }catch(e){}
+  saveState(); render();
+});
 document.getElementById("toggleRN").addEventListener("change", e=>{ showRN = e.target.checked; render(); });
 document.getElementById("btnRNApply").addEventListener("click", ()=>{
   if(!rnSuggest.length){ alert("Tick RN auto first (and fit the square: Fit 1)."); return; }
@@ -2288,6 +2297,7 @@ document.getElementById("btnRNApply").addEventListener("click", ()=>{
   });
   if(!del.size){ alert("Nothing to remove."); return; }
   if(!confirm("Remove "+del.size+" dot(s) from your red pivots? (you can re-validate them afterwards)")) return;
+  try{ localStorage.setItem("goldRNUndo_"+activeTab, JSON.stringify(rejectedMono[activeTab]||[])); }catch(e){}
   rejectedMono[activeTab] = (rejectedMono[activeTab]||[]).filter(t=>!del.has(t));
   saveState(); render();
 });
