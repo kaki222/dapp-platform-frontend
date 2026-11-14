@@ -1286,27 +1286,67 @@ const NEELY3 = (function(){
     return waves;
   }
 
-  // Pattern Isolation Procedures (p. 3-65 / 3-66)
-  function isolate(waves){
-    const out = [], n = waves.length;
-    const only = (w, set) => !w.pending && w.final.length>0 && w.final.every(l=>set.indexOf(l)>=0);
+  // Pattern Isolation Procedures (pp. 3-65..3-68) with darkening ("dotting") of confirmed patterns.
+  // Units = monowaves; a confirmed pattern is replaced by ONE compacted unit (Figs. 3-34, 3-35), so later counts treat it as one wave.
+  //  - forward search for a unit whose only label is :L5 / :L3 (compacted units are skipped)
+  //  - backward from it: 3 units, then one unit at a time, to a single :F3 (circle its beginning) or x:c3/:L3/:s5/:L5 (circle its end)
+  //  - an odd number of units must lie between the two circled points, else keep moving backward
+  //  - a dotted point met on the way is the start (Fig. 3-34): needs >=3 units between; fewer than 3 (Fig. 3-35) -> the earlier
+  //    compacted pattern is absorbed and the larger pattern begins where it began
+  //  - Fig. 3-36: if the pattern's price goes beyond its own beginning before it ends, its base Structure is :3 (corrective)
+  function isolate(waves, p){
     const startSet = ["F3","x:c3","L3","s5","L5"];
+    const only = (u, set) => !u.pending && u.final.length>0 && u.final.every(l=>set.indexOf(l)>=0);
+    const units = waves.map((w,i)=>({a:i, b:i+1, final:w.final, pending:!!w.pending, compact:false}));
+    const out = [];
     let from = 0;
     while(true){
       let e = -1;
-      for(let i=from;i<n;i++) if(only(waves[i], ["L5","L3"])){ e = i; break; }
+      for(let i=from;i<units.length;i++) if(!units[i].compact && only(units[i], ["L5","L3"])){ e = i; break; }
       if(e<0) break;
-      // move backward three Structure labels, then on until a single label in startSet is found with an odd number of waves between
-      let st = null, startAtBeginning = false;
-      for(let b=e-3; b>=0; b--){
-        const w = waves[b];
-        if(w.final.length===1 && startSet.indexOf(w.final[0])>=0){
-          const circle = (w.final[0]==="F3") ? b : b+1;            // F3: circle the BEGINNING of that wave ; others: circle its END (pivot b+1)
-          const count = e - (w.final[0]==="F3" ? b : b+1) + 1;       // waves from the circled start point to the end of the L5/L3 wave
-          if(count%2===1){ st = {pivot: circle, wave:b, label:w.final[0]}; break; }
+      let st = null, startUnit = -1, linked = false, check = null, absorbs = 0, multi = 0;
+      // Fig. 3-35: a dotted point fewer than three units back -> integrate the earlier compacted pattern
+      let c = -1;
+      for(let k=e-1;k>=0 && k>=e-2;k--) if(units[k].compact){ c = k; break; }
+      if(c>=0){
+        st = {pivot: units[c].a, unit:c, label:"dot"}; startUnit = c; linked = true; absorbs = 1;
+      } else {
+        for(let b=e-3; b>=0; b--){
+          const u = units[b];
+          if(u.compact){                                           // Fig. 3-34: previously dotted point
+            st = {pivot:u.b, unit:b, label:"dot"}; startUnit = b+1; linked = true;
+            if((e-b)%2===0) check = "even";
+            break;
+          }
+          if(u.final.length===1 && startSet.indexOf(u.final[0])>=0){
+            const f3 = u.final[0]==="F3";
+            const count = f3 ? e-b+1 : e-b;
+            if(count%2===1){ st = {pivot: f3 ? u.a : u.b, unit:b, label:u.final[0]}; startUnit = f3 ? b : b+1; break; }
+          }
         }
       }
-      out.push({endPivot:e+1, endWave:e, endLabel:waves[e].final.join("/"), start: st});
+      const ent = {endPivot:units[e].b, endWave:e, endLabel:units[e].final.join("/"), start: st, linked, check, absorbs, confirmed:false, base:null, exceeded:false, nUnits:0, multi:0};
+      if(st && startUnit>=0 && startUnit<=e){
+        for(let k=startUnit;k<=e;k++) if(!units[k].compact && units[k].final.length>1) multi++;
+        ent.multi = multi; ent.nUnits = e-startUnit+1;
+        const sp = units[startUnit].a, ep = units[e].b;
+        let exceeded = false;
+        if(p && p[sp] && p[ep]){
+          const up = p[ep].v > p[sp].v;
+          for(let k=sp+1;k<ep;k++) if(up ? p[k].v < p[sp].v : p[k].v > p[sp].v){ exceeded = true; break; }   // Fig. 3-36
+        }
+        const base = (units[e].final.indexOf("L3")>=0 && units[e].final.length===1) || exceeded ? "3" : "5";
+        ent.exceeded = exceeded; ent.base = base;
+        if(!check){
+          ent.confirmed = true;
+          if(absorbs){ for(let q=out.length-1;q>=0;q--) if(out[q].endPivot===units[c].b){ out.splice(q,1); break; } }
+          units.splice(startUnit, e-startUnit+1, {a:sp, b:ep, final:[":"+base], pending:false, compact:true, base});
+          out.push(ent);
+          from = startUnit+1;
+          continue;
+        }
+      }
+      out.push(ent);
       from = e+1;
     }
     return out;
@@ -1932,7 +1972,7 @@ function render(){
     const yspan = Math.abs(sy(yDomain[0])-sy(yDomain[1])) || 1;
     window.__AN = AN; window.__unitT = unitT;
     let PIw = null, ISO = null;
-    if(showPI){ try{ PIw = NEELY3.positionIndicators(AN.p, unitT); ISO = NEELY3.isolate(PIw); }catch(e){ PIw = null; ISO = null; } }
+    if(showPI){ try{ PIw = NEELY3.positionIndicators(AN.p, unitT); ISO = NEELY3.isolate(PIw, AN.p); }catch(e){ PIw = null; ISO = null; } }
     window.__PI = PIw; window.__ISO = ISO;
     AN.res.forEach(r=>{
       const pb = AN.p[r.b], pa = AN.p[r.a];
@@ -1962,13 +2002,22 @@ function render(){
       }
     });
     if(ISO){
+      const desc = o => (o.start?(AN.p[o.start.pivot].d||'')+' ('+o.start.label+')':'start ?')+' → '+(AN.p[o.endPivot].d||'')+' ('+o.endLabel+')'
+        + (o.confirmed ? ' · compacted → :'+o.base+(o.exceeded?' (price went beyond its own beginning: :3, Fig 3-36)':'')+' · '+o.nUnits+' unit(s)'+(o.absorbs?' · absorbed the earlier compacted pattern (<3 waves between, Fig 3-35)':(o.linked?' · starts at a dotted point (Fig 3-34)':''))+(o.multi?' · '+o.multi+' wave(s) between still have several labels':'') : (o.check==='even' ? ' · even number of waves from the dotted point: check' : ' · no start found'));
       ISO.forEach(o=>{
-        const pe = AN.p[o.endPivot];
-        if(pe && pe.t>=xDomain[0] && pe.t<=xDomain[1]) g.appendChild(el("circle",{cx:sx(pe.t),cy:sy(pe.v),r:9,fill:"none",stroke:"#7c3aed","stroke-width":2}));
-        if(o.start){ const ps = AN.p[o.start.pivot]; if(ps && ps.t>=xDomain[0] && ps.t<=xDomain[1]) g.appendChild(el("circle",{cx:sx(ps.t),cy:sy(ps.v),r:9,fill:"none",stroke:"#7c3aed","stroke-width":1.6,"stroke-dasharray":"3 3"})); }
+        const pe = AN.p[o.endPivot], ps = o.start ? AN.p[o.start.pivot] : null;
+        if(pe && pe.t>=xDomain[0] && pe.t<=xDomain[1]){
+          const ring = el("circle",{cx:sx(pe.t),cy:sy(pe.v),r:9,fill:"none",stroke:"#7c3aed","stroke-width":2});
+          const tt = document.createElementNS(NS,"title"); tt.textContent = desc(o); ring.appendChild(tt); g.appendChild(ring);
+          if(o.confirmed) g.appendChild(el("circle",{cx:sx(pe.t),cy:sy(pe.v),r:4.2,fill:"#7c3aed",stroke:"none"}));
+        }
+        if(ps && ps.t>=xDomain[0] && ps.t<=xDomain[1]){
+          g.appendChild(el("circle",{cx:sx(ps.t),cy:sy(ps.v),r:9,fill:"none",stroke:"#7c3aed","stroke-width":1.6,"stroke-dasharray":"3 3"}));
+          if(o.confirmed) g.appendChild(el("circle",{cx:sx(ps.t),cy:sy(ps.v),r:4.2,fill:"#7c3aed",stroke:"none"}));
+        }
       });
-      const rows = ISO.slice(-6).reverse().map(o=>'<div style="margin:2px 0;color:#6d28d9">⭘ '+(o.start?(AN.p[o.start.pivot].d||'')+' ('+o.start.label+')':'start ?')+' → '+(AN.p[o.endPivot].d||'')+' ('+o.endLabel+')</div>');
-      listRows.push('<div style="margin:4px 0 6px;font-weight:700;color:#6d28d9">Isolated patterns (newest): '+ISO.length+'</div>'+rows.join(""));
+      const rows = ISO.slice(-6).reverse().map(o=>'<div style="margin:2px 0;color:#6d28d9">⭘ '+desc(o)+'</div>');
+      listRows.push('<div style="margin:4px 0 6px;font-weight:700;color:#6d28d9">Isolated patterns (newest): '+ISO.length+' · compacted '+ISO.filter(o=>o.confirmed).length+'</div>'+rows.join(""));
     }
     // right-hand list: the newest monowaves
     AN.res.slice(-12).reverse().forEach(r=>{
