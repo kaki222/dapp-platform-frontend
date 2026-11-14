@@ -359,6 +359,7 @@ btnOrigin.addEventListener("click", ()=>{
 btnRay45.addEventListener("click", ()=>{ ray45Tabs[activeTab] = !ray45Tabs[activeTab]; saveState(); refreshRayBtn(); render(); });
 btnTagLevel.addEventListener("click", ()=>{ tagLevel = tagLevel===1 ? 2 : 1; btnTagLevel.classList.toggle("active", tagLevel===1); });
 /*NEELY_CH3_START*/
+/*NEELY_CH3_START*/
 // ---------------------------------------------------------------------------------------------
 // Neely Method, Chapter 3 "Preliminary Analysis" — engine, phase 1
 //   * Rules of Observation (Figs 3-19 .. 3-22): m0 / m2 (monowave groups mg0, mg2) for any m1
@@ -385,6 +386,23 @@ const NEELY3 = (function(){
       const dirPrev = last.v - prev.v, dirNew = q.v - last.v;
       if((dirPrev>0) === (dirNew>0)){ out[out.length-1] = q; }   // same direction continues: the later dot replaces
       else out.push(q);
+    }
+    return out;
+  }
+
+
+  // red-set check: which dots does clean() throw away? (a dot in the middle of a monowave, or a repeated price) -> they are "two red dots in one monowave"
+  function redCheck(p){
+    const out = [], keep = [];
+    for(let k=0;k<p.length;k++){
+      const q = p[k];
+      if(!keep.length){ keep.push(k); continue; }
+      const last = p[keep[keep.length-1]];
+      if(q.v === last.v){ out.push({i:k, t:q.t, v:q.v, kind:"dup"}); continue; }
+      if(keep.length === 1){ keep.push(k); continue; }
+      const prev = p[keep[keep.length-2]];
+      if(((last.v-prev.v)>0) === ((q.v-last.v)>0)){ const j = keep.pop(); out.push({i:j, t:p[j].t, v:p[j].v, kind:"mid"}); keep.push(k); }
+      else keep.push(k);
     }
     return out;
   }
@@ -1294,7 +1312,7 @@ const NEELY3 = (function(){
     return out;
   }
 
-  return {clean, observe, analyse, analyseAll, ruleOf, condOf, catOf, listFor, neutralityFlag, RULE_TEXT, LISTS, ctx, refine, refinedText, RULE1, RULE2, RULE3, RULE4, RULE5, RULE6, RULE7, neutral, positionIndicators, isolate, SEQ, ALL_LABELS};
+  return {redCheck, clean, observe, analyse, analyseAll, ruleOf, condOf, catOf, listFor, neutralityFlag, RULE_TEXT, LISTS, ctx, refine, refinedText, RULE1, RULE2, RULE3, RULE4, RULE5, RULE6, RULE7, neutral, positionIndicators, isolate, SEQ, ALL_LABELS};
 })();
 /*NEELY_CH3_END*/
 const NS = "http://www.w3.org/2000/svg";
@@ -1901,8 +1919,12 @@ function render(){
     const redBase = rejectableTab ? pivotSetA().filter(p=>(rejectedMono[activeTab]||[]).includes(p.t)) : [];
     const useRed = rejectableTab && (redOnly || redBase.length>=3);
     const src = useRed ? redBase : pivotSetA();
-    const baseNote = '<div style="margin:0 0 6px;font-size:11px;color:var(--muted,#666)">Base pivots: <b>'+(useRed?'your red (validated) pivots':'all monowave dots')+'</b> ('+src.length+')</div>';
+    const RC = useRed ? NEELY3.redCheck(src.map(p=>({t:p.t, v:p.v}))) : [];
+    window.__RC = RC;
+    const baseNote = '<div style="margin:0 0 6px;font-size:11px;color:var(--muted,#666)">Base pivots: <b>'+(useRed?'your red (validated) pivots':'all monowave dots')+'</b> ('+src.length+')</div>'
+      + (RC.length ? '<div style="margin:0 0 6px;font-size:11px;color:#b45309;font-weight:700">⚠ '+RC.length+' red dot(s) lie inside a monowave (amber rings): '+RC.slice(0,6).map(c=>(src[c.i].d||'')).join(', ')+(RC.length>6?' …':'')+' <button type="button" onclick="window.__fixRed()" style="font-size:11px">remove them</button></div>' : '');
     const AN = NEELY3.analyseAll(src.map(p=>({t:p.t, v:p.v, d:p.d})));
+    RC.forEach(c=>{ const pp=src[c.i]; if(pp && pp.t>=xDomain[0] && pp.t<=xDomain[1]){ g.appendChild(el("circle",{cx:sx(pp.t),cy:sy(pp.v),r:8,fill:"none",stroke:"#d97706","stroke-width":2.2})); g.appendChild(el("circle",{cx:sx(pp.t),cy:sy(pp.v),r:4,fill:"none",stroke:"#d97706","stroke-width":1.4})); } });
     const fitted = !!squareTabs[activeTab];
     let drawn = 0;
     const listRows = [];
@@ -2761,6 +2783,14 @@ document.getElementById("btnRNApply").addEventListener("click", ()=>{
   rejectedMono[activeTab] = (rejectedMono[activeTab]||[]).filter(t=>!del.has(t));
   saveState(); render();
 });
+window.__fixRed = function(){
+  const RC = window.__RC || []; if(!RC.length) return;
+  if(!confirm("Remove "+RC.length+" red dot(s) that sit inside a monowave? (undo RN restores the previous red set)")) return;
+  const del = new Set(RC.map(c=>c.t));
+  try{ localStorage.setItem("goldRNUndo_"+activeTab, JSON.stringify(rejectedMono[activeTab]||[])); }catch(e){}
+  rejectedMono[activeTab] = (rejectedMono[activeTab]||[]).filter(t=>!del.has(t));
+  saveState(); render();
+};
 document.getElementById("toggleRuleLab").addEventListener("change", e=>{ showRuleLab = e.target.checked; render(); });
 document.getElementById("ruleMin").addEventListener("input", e=>{ ruleMinPct = +e.target.value; document.getElementById("ruleMinVal").textContent = ruleMinPct+"%"; render(); });
 
