@@ -1337,6 +1337,7 @@ const NEELY3 = (function(){
         }
         const base = (units[e].final.indexOf("L3")>=0 && units[e].final.length===1) || exceeded ? "3" : "5";
         ent.exceeded = exceeded; ent.base = base;
+        ent.parts = units.slice(startUnit, e+1).map(u=>({a:u.a, b:u.b, final:u.final.slice(), compact:u.compact, base:u.base||null}));
         if(!check){
           ent.confirmed = true;
           if(absorbs){ for(let q=out.length-1;q>=0;q--) if(out[q].endPivot===units[c].b){ out.splice(q,1); break; } }
@@ -1352,7 +1353,75 @@ const NEELY3 = (function(){
     return out;
   }
 
-  return {redCheck, clean, observe, analyse, analyseAll, ruleOf, condOf, catOf, listFor, neutralityFlag, RULE_TEXT, LISTS, ctx, refine, refinedText, RULE1, RULE2, RULE3, RULE4, RULE5, RULE6, RULE7, neutral, positionIndicators, isolate, SEQ, ALL_LABELS};
+  // ===========================================================================================
+  // CHAPTER 4 — Structure Series (Fig. 4-3) and label reduction.
+  //  "?5" / "?3" = any Position Indicator legally allowed before that Structure label (p. 4-3). My reading of "legal":
+  //  ?5 in the middle of a pattern = 5, s5 (L5 only ends a pattern); ?5 at the end = 5, s5, L5; ?3 = c3, sL3, L3 (no F3, no x:c3).
+  //  A compacted wave possesses only its base Structure and "can represent any legal Positioned label of the same Class".
+  //  Class 5 = 5, s5, L5.  Class 3 = F3, c3, x:c3, sL3, L3.  (Class list: my reading of p. 2-4, not re-checked on the scan.)
+  // ===========================================================================================
+  const CLASS5 = ["5","s5","L5"], CLASS3 = ["F3","c3","x:c3","sL3","L3"];
+  const SERIES = [
+    {id:"A", name:"Impulsion", base:"5", nature:"trending",   slots:[["5"],["F3"],["5","s5"],["F3"],["L5"]]},
+    {id:"B", name:"Zigzag",    base:"3", nature:"corrective", slots:[["5"],["F3"],["5","s5","L5"]], lastL:["L5"]},
+    {id:"C", name:"Flat",      base:"3", nature:"corrective", slots:[["F3"],["c3"],["5","s5","L5"]], lastL:["L5"]},
+    {id:"D", name:"Triangle",  base:"3", nature:"corrective", slots:[["F3"],["c3"],["c3"],["c3","sL3","L3"],["c3","sL3","L3"]], lastL:["L3"]},
+    {id:"E", name:"Terminal",  base:"5", nature:"conclusive", slots:[["F3"],["c3"],["c3"],["c3","sL3","L3"],["L3"]]}
+  ];
+  const unitSet = u => u.compact ? (u.base==="5" ? CLASS5 : CLASS3) : u.final;
+  function matchSeries(parts){
+    const n = parts.length, res = [];
+    SERIES.forEach(s=>{
+      if(s.slots.length!==n) return;
+      const surv = [];
+      for(let k=0;k<n;k++){
+        const set = unitSet(parts[k]).filter(l=>s.slots[k].indexOf(l)>=0);
+        if(!set.length) return;
+        surv.push(set);
+      }
+      res.push({id:s.id, name:s.name, base:s.base, nature:s.nature, surv, lastL:s.lastL||null});
+    });
+    return res;
+  }
+  // groups of exactly 3 or 5 parts are tested against Fig. 4-3; larger groups only list the 3/5-wave windows that match a Series
+  // (Round 1: the smallest in price and time is worked first - the choice itself is not made here).
+  // Returns {byWave:{waveIndex:{labels, from, series}}, groups:[...]} ; iso entries get .series / .windows / .needsNonStd
+  function seriesReduce(iso, p){
+    const byWave = {}, groups = [];
+    iso.forEach((ent, gi)=>{
+      if(!ent.confirmed || !ent.parts) return;
+      const parts = ent.parts, n = parts.length;
+      ent.series = []; ent.windows = []; ent.needsNonStd = false;
+      if(n===3 || n===5){
+        const m = matchSeries(parts);
+        ent.series = m.map(x=>({id:x.id, name:x.name, base:x.base, nature:x.nature}));
+        if(m.length){
+          parts.forEach((u,k)=>{
+            if(u.compact) return;
+            const labs = []; m.forEach(x=>x.surv[k].forEach(l=>{ if(labs.indexOf(l)<0) labs.push(l); }));
+            const cur = byWave[u.a] ? byWave[u.a].labels : u.final;
+            const nl = cur.filter(l=>labs.indexOf(l)>=0);
+            if(nl.length && nl.length<cur.length) byWave[u.a] = {labels:nl, from:u.final.slice(), series:m.map(x=>x.id)};
+          });
+          const last = parts[n-1].final;
+          ent.needsNonStd = m.every(x=>x.lastL && last.indexOf(x.lastL[0])<0 && !parts[n-1].compact);   // footnote 1
+        }
+      } else if(n>5){
+        for(const len of [3,5]) for(let s=0;s+len<=n;s++){
+          const m = matchSeries(parts.slice(s,s+len));
+          if(m.length){
+            const a = parts[s].a, b = parts[s+len-1].b;
+            const price = p && p[a] && p[b] ? Math.abs(p[b].v-p[a].v) : null, time = p && p[a] && p[b] ? (p[b].t-p[a].t) : null;
+            ent.windows.push({from:s, len, ids:m.map(x=>x.id), price, time});
+          }
+        }
+      }
+      groups.push(ent);
+    });
+    return {byWave, groups};
+  }
+
+  return {redCheck, clean, observe, analyse, analyseAll, ruleOf, condOf, catOf, listFor, neutralityFlag, RULE_TEXT, LISTS, ctx, refine, refinedText, RULE1, RULE2, RULE3, RULE4, RULE5, RULE6, RULE7, neutral, positionIndicators, isolate, SEQ, ALL_LABELS, SERIES, matchSeries, seriesReduce};
 })();
 /*NEELY_CH3_END*/
 const NS = "http://www.w3.org/2000/svg";
@@ -1973,7 +2042,8 @@ function render(){
     window.__AN = AN; window.__unitT = unitT;
     let PIw = null, ISO = null;
     if(showPI){ try{ PIw = NEELY3.positionIndicators(AN.p, unitT); ISO = NEELY3.isolate(PIw, AN.p); }catch(e){ PIw = null; ISO = null; } }
-    window.__PI = PIw; window.__ISO = ISO;
+    let SR = null; if(ISO){ try{ SR = NEELY3.seriesReduce(ISO, AN.p); }catch(e){ SR = null; } }
+    window.__PI = PIw; window.__ISO = ISO; window.__SR = SR;
     AN.res.forEach(r=>{
       const pb = AN.p[r.b], pa = AN.p[r.a];
       r.rf = r.pending ? null : NEELY3.refine(AN.p, r.i, unitT, r);
@@ -1984,11 +2054,13 @@ function render(){
           stroke:"var(--panel)","stroke-width":3,"paint-order":"stroke"});
         const rtxt = NEELY3.refinedText(r.rf);
         { const pw = PIw ? PIw[r.i] : null;
-          const pit = pw ? (pw.final.length>=8 ? "?" : pw.final.join("/")) : "";
+          const sr = SR && SR.byWave[r.i] ? SR.byWave[r.i] : null;
+          const pit = pw ? (sr ? sr.labels.join("/")+"\u25C6" : (pw.final.length>=8 ? "?" : pw.final.join("/"))) : "";
           lab.textContent = r.id + (pw ? " " + pit : (showRuleLab && rtxt ? " " + rtxt.replace(/ \([^)]*\)/g,"") : "")); }
         const ttl = document.createElementNS(NS,"title");
         ttl.textContent = r.id+" · "+NEELY3.RULE_TEXT[r.rule]+" · m2/m1 "+Math.round(r.r2*100)+"%"+(r.r0!==undefined?" · m0/m1 "+Math.round(r.r0*100)+"%":"")+" · mg0="+r.mg0+" mg2="+r.mg2+(r.cat?" · m3/m2 "+Math.round(r.r3*100)+"%":"")+"\nBase list: "+r.list+
           (r.rf && r.rf.covered ? "\nPre-Constructive: "+(rtxt||"(no paragraph fired)")+(r.rf.notes.length?"\n"+r.rf.notes.join("\n"):"")+(r.rf.pending.length?"\nStill open (needs later waves): "+r.rf.pending.length:"") : "\n(no Pre-Constructive paragraphs for this Rule)");
+        if(SR && SR.byWave[r.i]){ const sr=SR.byWave[r.i]; ttl.textContent += "\nStructure Series (Fig 4-3): "+sr.from.join("/")+" -> "+sr.labels.join("/")+"  (series "+sr.series.join(", ")+")"; }
         if(PIw && PIw[r.i]){ const pw=PIw[r.i]; ttl.textContent += "\nPosition Indicators: "+pw.orig.join("/")+" -> "+(pw.final.length>=8?"(unrestricted)":pw.final.join("/"))+(pw.removed.length?"  (removed: "+pw.removed.join(", ")+")":""); }
         lab.appendChild(ttl);
         lab.style.cursor="pointer"; lab.addEventListener("click", ev=>{ ev.stopPropagation(); openM1View(r.i); });
@@ -2003,7 +2075,7 @@ function render(){
     });
     if(ISO){
       const desc = o => (o.start?(AN.p[o.start.pivot].d||'')+' ('+o.start.label+')':'start ?')+' → '+(AN.p[o.endPivot].d||'')+' ('+o.endLabel+')'
-        + (o.confirmed ? ' · compacted → :'+o.base+(o.exceeded?' (price went beyond its own beginning: :3, Fig 3-36)':'')+' · '+o.nUnits+' unit(s)'+(o.absorbs?' · absorbed the earlier compacted pattern (<3 waves between, Fig 3-35)':(o.linked?' · starts at a dotted point (Fig 3-34)':''))+(o.multi?' · '+o.multi+' wave(s) between still have several labels':'') : (o.check==='even' ? ' · even number of waves from the dotted point: check' : ' · no start found'));
+        + (o.series && o.series.length ? ' · Series '+o.series.map(s=>s.id+' '+s.name).join(' or ')+(o.needsNonStd?' (last label has no L: compact to :3, Non-Standard, fn 1)':'') : (o.parts && (o.parts.length===3||o.parts.length===5) ? ' · no Standard Series fits these '+o.parts.length+' waves' : (o.windows && o.windows.length ? ' · '+o.windows.length+' 3/5-wave window(s) fit a Series' : ''))) + (o.confirmed ? ' · compacted → :'+o.base+(o.exceeded?' (price went beyond its own beginning: :3, Fig 3-36)':'')+' · '+o.nUnits+' unit(s)'+(o.absorbs?' · absorbed the earlier compacted pattern (<3 waves between, Fig 3-35)':(o.linked?' · starts at a dotted point (Fig 3-34)':''))+(o.multi?' · '+o.multi+' wave(s) between still have several labels':'') : (o.check==='even' ? ' · even number of waves from the dotted point: check' : ' · no start found'));
       ISO.forEach(o=>{
         const pe = AN.p[o.endPivot], ps = o.start ? AN.p[o.start.pivot] : null;
         if(pe && pe.t>=xDomain[0] && pe.t<=xDomain[1]){
@@ -3602,7 +3674,7 @@ function drawM1View(){
   s += '</svg>';
   document.getElementById("m1Svg").innerHTML = s;
   const rt = NEELY3.refinedText(rf); const pw = window.__PI ? window.__PI[an.i] : null;
-  document.getElementById("m1Head").innerHTML = (pw?'<div style="color:#6d28d9"><b>Position Indicators:</b> '+pw.orig.join('/')+' → <b>'+(pw.final.length>=8?'(unrestricted)':pw.final.join('/'))+'</b>'+(pw.removed.length?' · removed: '+pw.removed.join(', '):'')+'</div>':'')+'<b>'+an.id+'</b> · '+NEELY3.RULE_TEXT[an.rule]+' · m2/m1 '+Math.round(an.r2*100)+'%'+(an.r0!==undefined?' · m0/m1 '+Math.round(an.r0*100)+'%':'')+
+  document.getElementById("m1Head").innerHTML = (pw?'<div style="color:#6d28d9"><b>Position Indicators:</b> '+pw.orig.join('/')+' → <b>'+(pw.final.length>=8?'(unrestricted)':pw.final.join('/'))+'</b>'+(pw.removed.length?' · removed: '+pw.removed.join(', '):'')+'</div>':'')+(window.__SR&&window.__SR.byWave[an.i]?'<div style="color:#6d28d9"><b>Structure Series (Fig 4-3):</b> '+window.__SR.byWave[an.i].from.join('/')+' → <b>'+window.__SR.byWave[an.i].labels.join('/')+'</b> (series '+window.__SR.byWave[an.i].series.join(', ')+')</div>':'')+'<b>'+an.id+'</b> · '+NEELY3.RULE_TEXT[an.rule]+' · m2/m1 '+Math.round(an.r2*100)+'%'+(an.r0!==undefined?' · m0/m1 '+Math.round(an.r0*100)+'%':'')+
     ' · mg0='+an.mg0+' mg2='+an.mg2+'<br>Base list: '+an.list+(rf.covered?'<br><b>Pre-Constructive:</b> '+(rt||'(no paragraph fired)')+(rf.notes.length?'<br><span style="color:var(--ink-soft)">'+rf.notes.join('<br>')+'</span>':'')+(rf.pending.length?'<br><span style="color:var(--ink-soft)">Still open (waves not formed yet): '+rf.pending.length+'</span>':''):'<br><span style="color:var(--ink-soft)">No Pre-Constructive paragraph fired / none for this Rule.</span>');
   const rows = wk.map(k=>{ const w=X.W[k], a=p[w.s], b=p[w.e], len=Math.abs(b.v-a.v), dt=days(Math.max(b.t-a.t,0));
     return '<tr style="'+(k===1?'font-weight:700;background:#92400e18':'')+'"><td style="color:'+col(k)+'"><b>m'+(k<0?'('+k+')':k)+'</b>'+(w.e-w.s>1?' ('+(w.e-w.s)+' mw)':'')+'</td><td>'+(a.d||'')+'</td><td>'+fmtPrice(a.v)+'</td><td>'+(b.d||'')+'</td><td>'+fmtPrice(b.v)+'</td><td>'+(b.v>a.v?'↑':'↓')+'</td><td>'+fmtPrice(len)+'</td><td>'+Math.round(len/L1*100)+'%</td><td>'+dt.toFixed(1)+'</td><td>'+Math.round(dt/days(p[an.b].t-p[an.a].t)*100)+'%</td></tr>'; });
