@@ -221,6 +221,7 @@ body.embed{padding-left:8px; padding-right:8px;}
           <label class="toggle" id="pivBLabelWrap" style="display:none"><input type="checkbox" id="toggle5" checked><span class="dot" style="background:var(--p5)"></span><span id="pivBLabel">5% pivots</span></label>
           <label class="toggle" id="ruleTagWrap" title="Neely Chapter 3: Retracement Rule of every monowave (m2/m1 and m0/m1 found with the Rules of Observation), e.g. R-2a. RN = Rule of Neutrality candidate (flatter than 45° on a square-fitted chart)"><input type="checkbox" id="toggleRules"><span class="dot" style="background:#92400e"></span><span>Rules (Ch.3)</span></label>
           <label class="toggle" id="ruleLabWrap" title="Show the Pre-Constructive Structure labels (Rules 2 and 5 coded) next to each R-tag"><input type="checkbox" id="toggleRuleLab"><span>labels</span></label>
+          <button type="button" id="btnM1View" class="toggle" style="cursor:pointer" title="Zoom on one monowave m1 with its m(-4)..m0 and m2..m4 neighbours (click an R-tag to choose it)">◎ m1 view</button>
           <label class="toggle" id="ruleMinWrap" title="Hide tags of monowaves smaller than this % of the visible price range"><span>min size</span><input type="range" id="ruleMin" min="0" max="15" step="0.5" value="0" style="width:80px"><span id="ruleMinVal">0%</span></label>
           <label class="toggle" id="redOnlyLabelWrap" style="display:none"><input type="checkbox" id="toggleRedOnly"><span class="dot" style="background:#d64545"></span><span>Validated (red) only</span></label>
         </div>
@@ -1405,6 +1406,7 @@ function render(){
     const listRows = [];
     let unitT = Infinity; for(let q=1;q<AN.p.length;q++){ const d=AN.p[q].t-AN.p[q-1].t; if(d>0 && d<unitT) unitT=d; } if(!isFinite(unitT)) unitT=1;
     const yspan = Math.abs(sy(yDomain[0])-sy(yDomain[1])) || 1;
+    window.__AN = AN; window.__unitT = unitT;
     AN.res.forEach(r=>{
       const pb = AN.p[r.b], pa = AN.p[r.a];
       r.rf = r.pending ? null : NEELY3.refine(AN.p, r.i, unitT, r);
@@ -1419,6 +1421,7 @@ function render(){
         ttl.textContent = r.id+" · "+NEELY3.RULE_TEXT[r.rule]+" · m2/m1 "+Math.round(r.r2*100)+"%"+(r.r0!==undefined?" · m0/m1 "+Math.round(r.r0*100)+"%":"")+" · mg0="+r.mg0+" mg2="+r.mg2+(r.cat?" · m3/m2 "+Math.round(r.r3*100)+"%":"")+"\nBase list: "+r.list+
           (r.rf && r.rf.covered ? "\nPre-Constructive: "+(rtxt||"(no paragraph fired)")+(r.rf.notes.length?"\n"+r.rf.notes.join("\n"):"")+(r.rf.pending.length?"\nStill open (needs later waves): "+r.rf.pending.length:"") : "\n(Pre-Constructive paragraphs for this Rule not coded yet)");
         lab.appendChild(ttl);
+        lab.style.cursor="pointer"; lab.addEventListener("click", ev=>{ ev.stopPropagation(); openM1View(r.i); });
         g.appendChild(lab); drawn++;
       }
       if(fitted && pb.t>=xDomain[0] && pb.t<=xDomain[1]){
@@ -2185,6 +2188,7 @@ const pivBLabel = document.getElementById("pivBLabel");
 const pivBLabelWrap = document.getElementById("pivBLabelWrap");
 const redOnlyLabelWrap = document.getElementById("redOnlyLabelWrap");
 document.getElementById("toggleRules").addEventListener("change", e=>{ showRulesFlag = e.target.checked; render(); });
+window.__render = render; window.__NEELY3 = NEELY3; window.__fmtPrice = fmtPrice; window.__setRules = v=>{ showRulesFlag = v; };
 document.getElementById("toggleRuleLab").addEventListener("change", e=>{ showRuleLab = e.target.checked; render(); });
 document.getElementById("ruleMin").addEventListener("input", e=>{ ruleMinPct = +e.target.value; document.getElementById("ruleMinVal").textContent = ruleMinPct+"%"; render(); });
 
@@ -2869,4 +2873,94 @@ document.addEventListener("click", e=>{
 }, true);
 if(__EMBED) window.addEventListener("pointerdown", ()=>{ try{ window.parent.__focusPane(window.frameElement); }catch(e){} }, true);
 })();
+</script>
+
+<div id="m1Modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;overflow:auto">
+  <div style="background:var(--panel);color:var(--ink);max-width:1100px;margin:24px auto;padding:14px 16px;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,.4)">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+      <b style="font-size:15px">m1 view — Neely neighbours</b>
+      <select id="m1Sel" style="max-width:520px"></select>
+      <label style="font-size:12px"><input type="checkbox" id="m1Eq" checked> equal spacing</label>
+      <label style="font-size:12px"><input type="checkbox" id="m1Fib" checked> m1 levels</label>
+      <button type="button" id="m1Close" style="margin-left:auto">✕ close</button>
+    </div>
+    <div id="m1Head" style="font-size:12.5px;margin-bottom:6px"></div>
+    <div id="m1Svg"></div>
+    <div id="m1Tbl" style="font-size:12px;margin-top:8px;overflow:auto"></div>
+  </div>
+</div>
+<script>
+let __m1i = null; const fmtPrice = v=>window.__fmtPrice(v); const NEELY3 = {ctx:(...a)=>window.__NEELY3.ctx(...a), refine:(...a)=>window.__NEELY3.refine(...a), refinedText:(...a)=>window.__NEELY3.refinedText(...a), get RULE_TEXT(){return window.__NEELY3.RULE_TEXT;}};
+function openM1View(i){
+  const AN = window.__AN; if(!AN){ return; }
+  const sel = document.getElementById("m1Sel");
+  const ok = AN.res.filter(r=>!r.pending && r.m0Start!==null);
+  if(!ok.length){ return; }
+  const lg = r => Math.abs(Math.log(AN.p[r.b].v/AN.p[r.a].v));
+  const sorted = ok.slice().sort((x,y)=>lg(y)-lg(x));
+  if(i===undefined || i===null || !ok.some(r=>r.i===i)) i = (__m1i!==null && ok.some(r=>r.i===__m1i)) ? __m1i : sorted[0].i;
+  __m1i = i;
+  sel.innerHTML = sorted.map(r=>'<option value="'+r.i+'"'+(r.i===i?' selected':'')+'>'+AN.p[r.a].d+' → '+AN.p[r.b].d+' · '+fmtPrice(AN.p[r.a].v)+' → '+fmtPrice(AN.p[r.b].v)+' · '+r.id+'</option>').join("");
+  document.getElementById("m1Modal").style.display = "block";
+  drawM1View();
+}
+function drawM1View(){
+  const AN = window.__AN, p = AN.p, unit = window.__unitT||1, i = __m1i;
+  const an = AN.res.find(r=>r.i===i); if(!an) return;
+  const X = NEELY3.ctx(p, i, unit), rf = NEELY3.refine(p, i, unit, an);
+  const days = t => t/86400000;
+  const keys = []; for(let k=-4;k<=6;k++) if(X.has(k)) keys.push(k);
+  const wk = keys.sort((a,b)=>X.W[a].s-X.W[b].s);
+  const first = Math.min(...wk.map(k=>X.W[k].s)), last = Math.max(...wk.map(k=>X.W[k].e));
+  const idx = []; for(let q=first;q<=last;q++) idx.push(q);
+  const eq = document.getElementById("m1Eq").checked;
+  const Wd = 1060, Hd = 470, ml = 70, mr = 20, mt = 20, mb = 40;
+  const t0 = p[first].t, t1 = p[last].t;
+  const xOf = q => ml + (eq ? (q-first)/(last-first) : (p[q].t-t0)/(t1-t0)) * (Wd-ml-mr);
+  let vmin = Infinity, vmax = -Infinity; idx.forEach(q=>{ vmin=Math.min(vmin,p[q].v); vmax=Math.max(vmax,p[q].v); });
+  const pad = (vmax-vmin)*0.08; vmin-=pad; vmax+=pad;
+  const yOf = v => mt + (vmax-v)/(vmax-vmin) * (Hd-mt-mb);
+  const col = k => k===1 ? "#92400e" : k<0 ? "#2563eb" : k===0 ? "#1d4ed8" : k===2 ? "#15803d" : "#059669";
+  let s = '<svg viewBox="0 0 '+Wd+' '+Hd+'" width="100%" style="background:var(--panel);border:1px solid var(--grid)">';
+  const m1s = p[an.a].v, m1e = p[an.b].v, sgn = an.up ? -1 : 1, L1 = an.m1;
+  s += '<line x1="'+ml+'" x2="'+(Wd-mr)+'" y1="'+yOf(m1s)+'" y2="'+yOf(m1s)+'" stroke="#92400e" stroke-dasharray="4 4" opacity=".45"/>';
+  s += '<line x1="'+ml+'" x2="'+(Wd-mr)+'" y1="'+yOf(m1e)+'" y2="'+yOf(m1e)+'" stroke="#92400e" stroke-dasharray="4 4" opacity=".45"/>';
+  if(document.getElementById("m1Fib").checked){
+    [[0.382,"38.2%"],[0.618,"61.8%"],[1,"100%"],[1.618,"161.8%"],[2.618,"261.8%"]].forEach(([f,tx])=>{
+      const v = m1e + sgn*L1*f; if(v<vmin||v>vmax) return;
+      s += '<line x1="'+ml+'" x2="'+(Wd-mr)+'" y1="'+yOf(v)+'" y2="'+yOf(v)+'" stroke="#888" stroke-dasharray="1 4" opacity=".7"/>';
+      s += '<text x="'+(Wd-mr-2)+'" y="'+(yOf(v)-3)+'" text-anchor="end" font-size="10" fill="#777">m2 '+tx+'</text>';
+    });
+  }
+  for(let q=0;q<=5;q++){ const v=vmin+(vmax-vmin)*q/5; s += '<text x="'+(ml-6)+'" y="'+(yOf(v)+3)+'" text-anchor="end" font-size="10" fill="#777">'+Math.round(v).toLocaleString()+'</text><line x1="'+ml+'" x2="'+(Wd-mr)+'" y1="'+yOf(v)+'" y2="'+yOf(v)+'" stroke="#8883" />'; }
+  for(let q=first;q<last;q++) s += '<line x1="'+xOf(q)+'" y1="'+yOf(p[q].v)+'" x2="'+xOf(q+1)+'" y2="'+yOf(p[q+1].v)+'" stroke="#999" stroke-width="1.5"/>';
+  wk.forEach(k=>{
+    const w = X.W[k], c = col(k), th = k===1 ? 4.5 : 2.6;
+    let d=''; for(let q=w.s;q<=w.e;q++) d += (q===w.s?'M':'L')+xOf(q)+','+yOf(p[q].v);
+    s += '<path d="'+d+'" fill="none" stroke="'+c+'" stroke-width="'+th+'"/>';
+  });
+  idx.forEach(q=>{ s += '<circle cx="'+xOf(q)+'" cy="'+yOf(p[q].v)+'" r="3.5" fill="#d64545"/>'; });
+  wk.forEach(k=>{
+    const w = X.W[k], xm = (xOf(w.s)+xOf(w.e))/2, ym = (yOf(p[w.s].v)+yOf(p[w.e].v))/2, upw = p[w.e].v > p[w.s].v;
+    const nm = 'm'+(k<0?'('+k+')':k)+(w.e-w.s>1?' ('+(w.e-w.s)+' mw)':'');
+    const pc = Math.round(Math.abs(p[w.e].v-p[w.s].v)/L1*100);
+    s += '<text x="'+(xm+(upw?-8:8))+'" y="'+ym+'" text-anchor="'+(upw?'end':'start')+'" font-size="13" font-weight="700" fill="'+col(k)+'" stroke="var(--panel)" stroke-width="3" paint-order="stroke">'+nm+'</text>';
+    s += '<text x="'+(xm+(upw?-8:8))+'" y="'+(ym+13)+'" text-anchor="'+(upw?'end':'start')+'" font-size="10" fill="'+col(k)+'" stroke="var(--panel)" stroke-width="3" paint-order="stroke">'+pc+'% of m1</text>';
+  });
+  idx.forEach(q=>{ s += '<text x="'+xOf(q)+'" y="'+(Hd-mb+14)+'" font-size="9" fill="#777" text-anchor="middle" transform="rotate(35 '+xOf(q)+' '+(Hd-mb+14)+')">'+(p[q].d||'')+'</text>'; });
+  s += '</svg>';
+  document.getElementById("m1Svg").innerHTML = s;
+  const rt = NEELY3.refinedText(rf);
+  document.getElementById("m1Head").innerHTML = '<b>'+an.id+'</b> · '+NEELY3.RULE_TEXT[an.rule]+' · m2/m1 '+Math.round(an.r2*100)+'%'+(an.r0!==undefined?' · m0/m1 '+Math.round(an.r0*100)+'%':'')+
+    ' · mg0='+an.mg0+' mg2='+an.mg2+'<br>Base list: '+an.list+(rf.covered?'<br><b>Pre-Constructive:</b> '+(rt||'(no paragraph fired)')+(rf.notes.length?'<br><span style="color:var(--ink-soft)">'+rf.notes.join('<br>')+'</span>':'')+(rf.pending.length?'<br><span style="color:var(--ink-soft)">Still open (waves not formed yet): '+rf.pending.length+'</span>':''):'<br><span style="color:var(--ink-soft)">Pre-Constructive paragraphs for this Rule are not coded yet.</span>');
+  const rows = wk.map(k=>{ const w=X.W[k], a=p[w.s], b=p[w.e], len=Math.abs(b.v-a.v), dt=days(Math.max(b.t-a.t,0));
+    return '<tr style="'+(k===1?'font-weight:700;background:#92400e18':'')+'"><td style="color:'+col(k)+'"><b>m'+(k<0?'('+k+')':k)+'</b>'+(w.e-w.s>1?' ('+(w.e-w.s)+' mw)':'')+'</td><td>'+(a.d||'')+'</td><td>'+fmtPrice(a.v)+'</td><td>'+(b.d||'')+'</td><td>'+fmtPrice(b.v)+'</td><td>'+(b.v>a.v?'↑':'↓')+'</td><td>'+fmtPrice(len)+'</td><td>'+Math.round(len/L1*100)+'%</td><td>'+dt.toFixed(1)+'</td><td>'+Math.round(dt/days(p[an.b].t-p[an.a].t)*100)+'%</td></tr>'; });
+  document.getElementById("m1Tbl").innerHTML = '<table style="border-collapse:collapse;width:100%" cellpadding="3"><tr style="text-align:left;border-bottom:1px solid var(--grid)"><th>wave</th><th>from</th><th>price</th><th>to</th><th>price</th><th></th><th>length</th><th>% of m1</th><th>days</th><th>time % of m1</th></tr>'+rows.join("")+'</table>';
+}
+document.getElementById("btnM1View").addEventListener("click", ()=>{ const c=document.getElementById("toggleRules"); if(!c.checked){ c.checked=true; window.__setRules(true); window.__render(); } openM1View(); });
+document.getElementById("m1Close").addEventListener("click", ()=>{ document.getElementById("m1Modal").style.display="none"; });
+document.getElementById("m1Sel").addEventListener("change", e=>{ __m1i = +e.target.value; drawM1View(); });
+document.getElementById("m1Eq").addEventListener("change", drawM1View);
+document.getElementById("m1Fib").addEventListener("change", drawM1View);
+document.getElementById("m1Modal").addEventListener("click", e=>{ if(e.target.id==="m1Modal") e.target.style.display="none"; });
 </script>
