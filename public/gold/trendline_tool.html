@@ -221,6 +221,10 @@ body.embed{padding-left:8px; padding-right:8px;}
           <label class="toggle" id="pivBLabelWrap" style="display:none"><input type="checkbox" id="toggle5" checked><span class="dot" style="background:var(--p5)"></span><span id="pivBLabel">5% pivots</span></label>
           <label class="toggle" id="ruleTagWrap" title="Neely Chapter 3: Retracement Rule of every monowave (m2/m1 and m0/m1 found with the Rules of Observation), e.g. R-2a. RN = Rule of Neutrality candidate (flatter than 45° on a square-fitted chart)"><input type="checkbox" id="toggleRules"><span class="dot" style="background:#92400e"></span><span>Rules (Ch.3)</span></label>
           <label class="toggle" id="ruleLabWrap" title="Show the Pre-Constructive Structure labels (Rules 2 and 5 coded) next to each R-tag"><input type="checkbox" id="toggleRuleLab"><span>labels</span></label>
+          <label class="toggle" id="rnWrap" title="Rule of Neutrality, automatic: finds sideways periods (inside the 45-degree cone of the square-fitted chart), classes them Aspect 1 or 2 and shows what to do"><input type="checkbox" id="toggleRN"><span>RN auto</span></label>
+          <select id="rnA2" title="what to do with Aspect 2 periods when you press apply" style="font-size:12px"><option value="three">A2: three segments</option><option value="merge">A2: one monowave</option><option value="skip">A2: skip</option></select>
+          <button type="button" id="btnRNApply" class="toggle" style="cursor:pointer" title="Remove the suggested dots from your red (validated) pivots">apply RN</button>
+          <button type="button" id="btnM1View" class="toggle" style="cursor:pointer" title="Zoom on one monowave m1 with its m(-4)..m0 and m2..m4 neighbours (click an R-tag to choose it)">◎ m1 view</button>
           <label class="toggle" id="ruleMinWrap" title="Hide tags of monowaves smaller than this % of the visible price range"><span>min size</span><input type="range" id="ruleMin" min="0" max="15" step="0.5" value="0" style="width:80px"><span id="ruleMinVal">0%</span></label>
           <label class="toggle" id="redOnlyLabelWrap" style="display:none"><input type="checkbox" id="toggleRedOnly"><span class="dot" style="background:#d64545"></span><span>Validated (red) only</span></label>
         </div>
@@ -791,7 +795,61 @@ const NEELY3 = (function(){
     return parts.join(" ");
   }
 
-  return {clean, observe, analyse, analyseAll, ruleOf, condOf, catOf, listFor, neutralityFlag, RULE_TEXT, LISTS, ctx, refine, refinedText, RULE2, RULE5};
+
+  // ===========================================================================================
+  // Rule of Neutrality, automatic (Ch.3 pp. 3-9 .. 3-13)
+  // p = alternating pivots {t,v}; X,Y = their SCREEN coordinates on the chart scaled by the Rule of Proportion (square).
+  // A neutral period = a run of pivots s..e whose price range is no taller than it is wide (inside the 45-degree cone).
+  //   opposite-direction legs before/after  -> Aspect 1 : the first monowave is resolved at the far right (pivot e); pivots s..e-1 go.
+  //        blocked if  (a) the new end lies more than 38.2% (of that monowave) from the old end (Fig 3-17), or
+  //                    (b) the monowave is retraced < 61.8% and the market then exceeds its end (Fig 3-15b)
+  //   same-direction legs before/after      -> Aspect 2 : one larger monowave (pivots s..e go) or three segments (pivots s+1..e-1 go).
+  //        more than one time unit -> the book says it MUST be split in three; one time unit -> optional.
+  //        Restriction (a data point lower than the last cancels it) needs the raw bars and is NOT checked here.
+  // ===========================================================================================
+  function neutral(p, X, Y, unit){
+    const n = p.length, out = [];
+    let s = 0;
+    while(s < n-1){
+      if(!(Math.abs(Y[s+1]-Y[s]) < Math.abs(X[s+1]-X[s]))){ s++; continue; }
+      let e = s+1;
+      while(e+1 < n){
+        let lo = Infinity, hi = -Infinity;
+        for(let q=s; q<=e+1; q++){ lo = Math.min(lo, Y[q]); hi = Math.max(hi, Y[q]); }
+        const legFlat = Math.abs(Y[e+1]-Y[e]) < Math.abs(X[e+1]-X[e]);      // every leg of the period is itself flatter than 45 degrees
+        if(legFlat && hi-lo <= X[e+1]-X[s]) e++; else break;
+      }
+      out.push(classifyRN(p, s, e, unit));
+      s = e;
+    }
+    return out;
+  }
+  function classifyRN(p, s, e, unit){
+    const n = p.length, k = e-s, hasB = s>=1, hasA = e+1<n;
+    const r = {s, e, k, aspect:null, status:"open", why:"", remove:[], removeMerge:[], dur:p[e].t-p[s].t, long: (p[e].t-p[s].t) > unit};
+    if(!hasB || !hasA){ r.why = "needs a monowave on both sides"; return r; }
+    const dirB = Math.sign(p[s].v-p[s-1].v), dirA = Math.sign(p[e+1].v-p[e].v);
+    if(dirB !== dirA){
+      r.aspect = 1;
+      const L = Math.abs(p[s].v-p[s-1].v), back = Math.abs(p[s].v-p[e].v);
+      let worst = 0; for(let q=s; q<=e; q++) worst = Math.max(worst, Math.abs(p[s].v-p[q].v));
+      const ret = worst/L;
+      const nxt = e+2<n ? p[e+2].v : null;
+      const exceeds = nxt!==null && (dirB>0 ? nxt>p[s].v : nxt<p[s].v);
+      if(back/L > 0.382){ r.status="blocked"; r.why="new end would be "+Math.round(back/L*100)+"% (> 38.2%) from the old end of the monowave (Fig 3-17)"; }
+      else if(ret < 0.618 && exceeds){ r.status="blocked"; r.why="monowave retraced "+Math.round(ret*100)+"% (< 61.8%) and the market then exceeds its end (Fig 3-15b)"; }
+      else { r.status="apply"; r.why="Aspect 1: resolve the first monowave at the far right (dot e); dots inside the period are removed"; for(let q=s; q<e; q++) r.remove.push(q); }
+    } else {
+      r.aspect = 2;
+      r.status = "candidate";
+      r.why = r.long ? "Aspect 2, longer than one time unit: split into three segments (book: must apply)" : "Aspect 2, one time unit: optional (use it only if it improves alternation / removes a missing wave)";
+      for(let q=s+1; q<e; q++) r.remove.push(q);            // three segments: keep s and e
+      for(let q=s; q<=e; q++) r.removeMerge.push(q);        // one larger monowave: drop s..e
+    }
+    return r;
+  }
+
+  return {clean, observe, analyse, analyseAll, ruleOf, condOf, catOf, listFor, neutralityFlag, RULE_TEXT, LISTS, ctx, refine, refinedText, RULE2, RULE5, neutral};
 })();
 /*NEELY_CH3_END*/
 const NS = "http://www.w3.org/2000/svg";
@@ -853,7 +911,7 @@ let square2Tabs = {};  // {[tab]: true} show the second (non-directional) square
 let squareEnd = {};   // {[tab]: {t,v}} user-chosen top-right corner of the Neely square (default: highest point)
 let ndSquares = [];   // [{id,tab,t0,v0,t1,v1}] non-directional squares: start top-left, end on the right edge at the 50% line
 let squareTabs = {}; // {[tab]: true} tabs fitted to Neely's square: start (Neely start) bottom-left, highest point top-right
-let showRulesFlag = false, showRuleLab = false, ruleMinPct = 0;
+let showRN = false, rnSuggest = [], showRulesFlag = false, showRuleLab = false, ruleMinPct = 0;
 let yOverride = {};  // {[tab]: [lo,hi]} fixed price range while the square fit is on (not saved)
 let ray45Tabs = {}; // {[tab]: true} tabs showing the 45-degree ray from the Neely start (26-Sep-2022, 1632.15)
 let logTabs = {}; // {[tab]: true} tabs shown on a logarithmic (semi-log, Neely-style) price axis
@@ -1394,13 +1452,18 @@ function render(){
 
   // ---- Neely Chapter 3: Retracement Rule tags at the end of each monowave (m1) ----
   if(showRulesFlag){
-    const src = (rejectableTab && redOnly) ? pivotSetA().filter(p=>(rejectedMono[activeTab]||[]).includes(p.t)) : pivotSetA();
+    // base pivots: the hand-validated (red) pivots when the tab has them (Neely: identify the monowave dots first, then apply the Rules); otherwise every dot
+    const redBase = rejectableTab ? pivotSetA().filter(p=>(rejectedMono[activeTab]||[]).includes(p.t)) : [];
+    const useRed = rejectableTab && (redOnly || redBase.length>=3);
+    const src = useRed ? redBase : pivotSetA();
+    const baseNote = '<div style="margin:0 0 6px;font-size:11px;color:var(--muted,#666)">Base pivots: <b>'+(useRed?'your red (validated) pivots':'all monowave dots')+'</b> ('+src.length+')</div>';
     const AN = NEELY3.analyseAll(src.map(p=>({t:p.t, v:p.v, d:p.d})));
     const fitted = !!squareTabs[activeTab];
     let drawn = 0;
     const listRows = [];
     let unitT = Infinity; for(let q=1;q<AN.p.length;q++){ const d=AN.p[q].t-AN.p[q-1].t; if(d>0 && d<unitT) unitT=d; } if(!isFinite(unitT)) unitT=1;
     const yspan = Math.abs(sy(yDomain[0])-sy(yDomain[1])) || 1;
+    window.__AN = AN; window.__unitT = unitT;
     AN.res.forEach(r=>{
       const pb = AN.p[r.b], pa = AN.p[r.a];
       r.rf = r.pending ? null : NEELY3.refine(AN.p, r.i, unitT, r);
@@ -1415,6 +1478,7 @@ function render(){
         ttl.textContent = r.id+" · "+NEELY3.RULE_TEXT[r.rule]+" · m2/m1 "+Math.round(r.r2*100)+"%"+(r.r0!==undefined?" · m0/m1 "+Math.round(r.r0*100)+"%":"")+" · mg0="+r.mg0+" mg2="+r.mg2+(r.cat?" · m3/m2 "+Math.round(r.r3*100)+"%":"")+"\nBase list: "+r.list+
           (r.rf && r.rf.covered ? "\nPre-Constructive: "+(rtxt||"(no paragraph fired)")+(r.rf.notes.length?"\n"+r.rf.notes.join("\n"):"")+(r.rf.pending.length?"\nStill open (needs later waves): "+r.rf.pending.length:"") : "\n(Pre-Constructive paragraphs for this Rule not coded yet)");
         lab.appendChild(ttl);
+        lab.style.cursor="pointer"; lab.addEventListener("click", ev=>{ ev.stopPropagation(); openM1View(r.i); });
         g.appendChild(lab); drawn++;
       }
       if(fitted && pb.t>=xDomain[0] && pb.t<=xDomain[1]){
@@ -1430,8 +1494,38 @@ function render(){
       listRows.push('<div style="margin:2px 0;border-bottom:1px solid var(--grid);padding-bottom:2px"><b>'+(r.pending?'m2 not yet confirmed':r.id)+'</b> · '+fmtPrice(pa.v)+' → '+fmtPrice(pb.v)+
         (r.pending?'':' · m2 '+Math.round(r.r2*100)+'%'+(r.r0!==undefined?' · m0 '+Math.round(r.r0*100)+'%':' · m0 ?')+' · mg2='+r.mg2+'<br><span style="color:var(--muted,#666)">'+(r.rf&&r.rf.covered&&NEELY3.refinedText(r.rf)?'<b>'+NEELY3.refinedText(r.rf)+'</b> ['+r.rf.fired.join(', ')+']':r.list)+'</span>')+'</div>');
     });
-    const rl = document.getElementById("ruleList"); if(rl) rl.innerHTML = listRows.join("") || "No monowaves.";
+    const rl = document.getElementById("ruleList"); if(rl) rl.innerHTML = baseNote + (listRows.join("") || "No monowaves.");
   } else { const rl = document.getElementById("ruleList"); if(rl) rl.innerHTML = '<span style="color:#888">Tick “Rules (Ch.3)” above the chart.</span>'; }
+
+  // ---- Rule of Neutrality, automatic ----
+  rnSuggest = [];
+  if(showRN){
+    const redB = rejectableTab ? pivotSetA().filter(p=>(rejectedMono[activeTab]||[]).includes(p.t)) : [];
+    const useRedRN = rejectableTab && (redOnly || redB.length>=3);
+    const baseRN = NEELY3.clean((useRedRN ? redB : pivotSetA()).map(p=>({t:p.t, v:p.v, d:p.d})));
+    let unitRN = Infinity; for(let q=1;q<baseRN.length;q++){ const d=baseRN[q].t-baseRN[q-1].t; if(d>0 && d<unitRN) unitRN=d; } if(!isFinite(unitRN)) unitRN=1;
+    const Xs = baseRN.map(p=>sx(p.t)), Ys = baseRN.map(p=>sy(p.v));
+    const per = NEELY3.neutral(baseRN, Xs, Ys, unitRN);
+    const colRN = {apply:"#15803d", candidate:"#b45309", blocked:"#b91c1c", open:"#888"};
+    per.forEach(r=>{
+      r.useRed = useRedRN; r.base = baseRN;
+      rnSuggest.push(r);
+      if(baseRN[r.e].t < xDomain[0] || baseRN[r.s].t > xDomain[1]) return;
+      const c = colRN[r.status];
+      let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+      for(let q=r.s;q<=r.e;q++){ x0=Math.min(x0,Xs[q]); x1=Math.max(x1,Xs[q]); y0=Math.min(y0,Ys[q]); y1=Math.max(y1,Ys[q]); }
+      const cx=(x0+x1)/2, cy=(y0+y1)/2, rx=Math.max((x1-x0)/2+8,9), ry=Math.max((y1-y0)/2+8,9);
+      if(r.aspect===2){
+        const hw=rx/2; [cx-hw/1.0*0.5, cx+hw/1.0*0.5].forEach(xx=> g.appendChild(el("ellipse",{cx:xx,cy:cy,rx:Math.max(hw,9),ry:ry,fill:"none",stroke:c,"stroke-width":1.6})));
+      } else g.appendChild(el("ellipse",{cx:cx,cy:cy,rx:rx,ry:ry,fill:"none",stroke:c,"stroke-width":1.6,"stroke-dasharray": r.status==="blocked"?"4 3":""}));
+      const t = el("text",{x:cx,y:y1+ry+11,"text-anchor":"middle","font-size":10,"font-weight":700,fill:c,stroke:"var(--panel)","stroke-width":3,"paint-order":"stroke"});
+      t.textContent = "RN"+(r.aspect?("-A"+r.aspect):"")+(r.status==="apply"?" ✓":r.status==="blocked"?" ✗":r.status==="candidate"?" ?":"");
+      const tt = document.createElementNS(NS,"title"); tt.textContent = "Rule of Neutrality · "+r.why+" · "+(r.k)+" leg(s) · "+(r.long?"longer than one time unit":"one time unit");
+      t.appendChild(tt); g.appendChild(t);
+      const rm = (r.status==="apply") ? r.remove : (r.status==="candidate" ? r.remove : []);
+      rm.forEach(q=> { const xq=Xs[q], yq=Ys[q]; g.appendChild(el("path",{d:"M"+(xq-4)+","+(yq-4)+"L"+(xq+4)+","+(yq+4)+"M"+(xq+4)+","+(yq-4)+"L"+(xq-4)+","+(yq+4),stroke:c,"stroke-width":1.6,fill:"none"})); });
+    });
+  }
 
   // forecast: purple projected pivots chained from the last validated (red) pivot of this tab
   const fc = forecasts[activeTab] || [];
@@ -2181,6 +2275,22 @@ const pivBLabel = document.getElementById("pivBLabel");
 const pivBLabelWrap = document.getElementById("pivBLabelWrap");
 const redOnlyLabelWrap = document.getElementById("redOnlyLabelWrap");
 document.getElementById("toggleRules").addEventListener("change", e=>{ showRulesFlag = e.target.checked; render(); });
+window.__render = render; window.__NEELY3 = NEELY3; window.__fmtPrice = fmtPrice; window.__setRules = v=>{ showRulesFlag = v; };
+document.getElementById("toggleRN").addEventListener("change", e=>{ showRN = e.target.checked; render(); });
+document.getElementById("btnRNApply").addEventListener("click", ()=>{
+  if(!rnSuggest.length){ alert("Tick RN auto first (and fit the square: Fit 1)."); return; }
+  if(!rnSuggest[0].useRed){ alert("Apply works on your red (validated) pivots. Validate some red pivots first."); return; }
+  const mode = document.getElementById("rnA2").value, del = new Set();
+  rnSuggest.forEach(r=>{
+    const b = r.base;
+    if(r.status==="apply") r.remove.forEach(q=>del.add(b[q].t));
+    else if(r.status==="candidate"){ if(mode==="three") r.remove.forEach(q=>del.add(b[q].t)); else if(mode==="merge") r.removeMerge.forEach(q=>del.add(b[q].t)); }
+  });
+  if(!del.size){ alert("Nothing to remove."); return; }
+  if(!confirm("Remove "+del.size+" dot(s) from your red pivots? (you can re-validate them afterwards)")) return;
+  rejectedMono[activeTab] = (rejectedMono[activeTab]||[]).filter(t=>!del.has(t));
+  saveState(); render();
+});
 document.getElementById("toggleRuleLab").addEventListener("change", e=>{ showRuleLab = e.target.checked; render(); });
 document.getElementById("ruleMin").addEventListener("input", e=>{ ruleMinPct = +e.target.value; document.getElementById("ruleMinVal").textContent = ruleMinPct+"%"; render(); });
 
@@ -2865,4 +2975,94 @@ document.addEventListener("click", e=>{
 }, true);
 if(__EMBED) window.addEventListener("pointerdown", ()=>{ try{ window.parent.__focusPane(window.frameElement); }catch(e){} }, true);
 })();
+</script>
+
+<div id="m1Modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;overflow:auto">
+  <div style="background:var(--panel);color:var(--ink);max-width:1100px;margin:24px auto;padding:14px 16px;border-radius:8px;box-shadow:0 8px 40px rgba(0,0,0,.4)">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+      <b style="font-size:15px">m1 view — Neely neighbours</b>
+      <select id="m1Sel" style="max-width:520px"></select>
+      <label style="font-size:12px"><input type="checkbox" id="m1Eq" checked> equal spacing</label>
+      <label style="font-size:12px"><input type="checkbox" id="m1Fib" checked> m1 levels</label>
+      <button type="button" id="m1Close" style="margin-left:auto">✕ close</button>
+    </div>
+    <div id="m1Head" style="font-size:12.5px;margin-bottom:6px"></div>
+    <div id="m1Svg"></div>
+    <div id="m1Tbl" style="font-size:12px;margin-top:8px;overflow:auto"></div>
+  </div>
+</div>
+<script>
+let __m1i = null; const fmtPrice = v=>window.__fmtPrice(v); const NEELY3 = {ctx:(...a)=>window.__NEELY3.ctx(...a), refine:(...a)=>window.__NEELY3.refine(...a), refinedText:(...a)=>window.__NEELY3.refinedText(...a), get RULE_TEXT(){return window.__NEELY3.RULE_TEXT;}};
+function openM1View(i){
+  const AN = window.__AN; if(!AN){ return; }
+  const sel = document.getElementById("m1Sel");
+  const ok = AN.res.filter(r=>!r.pending && r.m0Start!==null);
+  if(!ok.length){ return; }
+  const lg = r => Math.abs(Math.log(AN.p[r.b].v/AN.p[r.a].v));
+  const sorted = ok.slice().sort((x,y)=>lg(y)-lg(x));
+  if(i===undefined || i===null || !ok.some(r=>r.i===i)) i = (__m1i!==null && ok.some(r=>r.i===__m1i)) ? __m1i : sorted[0].i;
+  __m1i = i;
+  sel.innerHTML = sorted.map(r=>'<option value="'+r.i+'"'+(r.i===i?' selected':'')+'>'+AN.p[r.a].d+' → '+AN.p[r.b].d+' · '+fmtPrice(AN.p[r.a].v)+' → '+fmtPrice(AN.p[r.b].v)+' · '+r.id+'</option>').join("");
+  document.getElementById("m1Modal").style.display = "block";
+  drawM1View();
+}
+function drawM1View(){
+  const AN = window.__AN, p = AN.p, unit = window.__unitT||1, i = __m1i;
+  const an = AN.res.find(r=>r.i===i); if(!an) return;
+  const X = NEELY3.ctx(p, i, unit), rf = NEELY3.refine(p, i, unit, an);
+  const days = t => t/86400000;
+  const keys = []; for(let k=-4;k<=6;k++) if(X.has(k)) keys.push(k);
+  const wk = keys.sort((a,b)=>X.W[a].s-X.W[b].s);
+  const first = Math.min(...wk.map(k=>X.W[k].s)), last = Math.max(...wk.map(k=>X.W[k].e));
+  const idx = []; for(let q=first;q<=last;q++) idx.push(q);
+  const eq = document.getElementById("m1Eq").checked;
+  const Wd = 1060, Hd = 470, ml = 70, mr = 20, mt = 20, mb = 40;
+  const t0 = p[first].t, t1 = p[last].t;
+  const xOf = q => ml + (eq ? (q-first)/(last-first) : (p[q].t-t0)/(t1-t0)) * (Wd-ml-mr);
+  let vmin = Infinity, vmax = -Infinity; idx.forEach(q=>{ vmin=Math.min(vmin,p[q].v); vmax=Math.max(vmax,p[q].v); });
+  const pad = (vmax-vmin)*0.08; vmin-=pad; vmax+=pad;
+  const yOf = v => mt + (vmax-v)/(vmax-vmin) * (Hd-mt-mb);
+  const col = k => k===1 ? "#92400e" : k<0 ? "#2563eb" : k===0 ? "#1d4ed8" : k===2 ? "#15803d" : "#059669";
+  let s = '<svg viewBox="0 0 '+Wd+' '+Hd+'" width="100%" style="background:var(--panel);border:1px solid var(--grid)">';
+  const m1s = p[an.a].v, m1e = p[an.b].v, sgn = an.up ? -1 : 1, L1 = an.m1;
+  s += '<line x1="'+ml+'" x2="'+(Wd-mr)+'" y1="'+yOf(m1s)+'" y2="'+yOf(m1s)+'" stroke="#92400e" stroke-dasharray="4 4" opacity=".45"/>';
+  s += '<line x1="'+ml+'" x2="'+(Wd-mr)+'" y1="'+yOf(m1e)+'" y2="'+yOf(m1e)+'" stroke="#92400e" stroke-dasharray="4 4" opacity=".45"/>';
+  if(document.getElementById("m1Fib").checked){
+    [[0.382,"38.2%"],[0.618,"61.8%"],[1,"100%"],[1.618,"161.8%"],[2.618,"261.8%"]].forEach(([f,tx])=>{
+      const v = m1e + sgn*L1*f; if(v<vmin||v>vmax) return;
+      s += '<line x1="'+ml+'" x2="'+(Wd-mr)+'" y1="'+yOf(v)+'" y2="'+yOf(v)+'" stroke="#888" stroke-dasharray="1 4" opacity=".7"/>';
+      s += '<text x="'+(Wd-mr-2)+'" y="'+(yOf(v)-3)+'" text-anchor="end" font-size="10" fill="#777">m2 '+tx+'</text>';
+    });
+  }
+  for(let q=0;q<=5;q++){ const v=vmin+(vmax-vmin)*q/5; s += '<text x="'+(ml-6)+'" y="'+(yOf(v)+3)+'" text-anchor="end" font-size="10" fill="#777">'+Math.round(v).toLocaleString()+'</text><line x1="'+ml+'" x2="'+(Wd-mr)+'" y1="'+yOf(v)+'" y2="'+yOf(v)+'" stroke="#8883" />'; }
+  for(let q=first;q<last;q++) s += '<line x1="'+xOf(q)+'" y1="'+yOf(p[q].v)+'" x2="'+xOf(q+1)+'" y2="'+yOf(p[q+1].v)+'" stroke="#999" stroke-width="1.5"/>';
+  wk.forEach(k=>{
+    const w = X.W[k], c = col(k), th = k===1 ? 4.5 : 2.6;
+    let d=''; for(let q=w.s;q<=w.e;q++) d += (q===w.s?'M':'L')+xOf(q)+','+yOf(p[q].v);
+    s += '<path d="'+d+'" fill="none" stroke="'+c+'" stroke-width="'+th+'"/>';
+  });
+  idx.forEach(q=>{ s += '<circle cx="'+xOf(q)+'" cy="'+yOf(p[q].v)+'" r="3.5" fill="#d64545"/>'; });
+  wk.forEach(k=>{
+    const w = X.W[k], xm = (xOf(w.s)+xOf(w.e))/2, ym = (yOf(p[w.s].v)+yOf(p[w.e].v))/2, upw = p[w.e].v > p[w.s].v;
+    const nm = 'm'+(k<0?'('+k+')':k)+(w.e-w.s>1?' ('+(w.e-w.s)+' mw)':'');
+    const pc = Math.round(Math.abs(p[w.e].v-p[w.s].v)/L1*100);
+    s += '<text x="'+(xm+(upw?-8:8))+'" y="'+ym+'" text-anchor="'+(upw?'end':'start')+'" font-size="13" font-weight="700" fill="'+col(k)+'" stroke="var(--panel)" stroke-width="3" paint-order="stroke">'+nm+'</text>';
+    s += '<text x="'+(xm+(upw?-8:8))+'" y="'+(ym+13)+'" text-anchor="'+(upw?'end':'start')+'" font-size="10" fill="'+col(k)+'" stroke="var(--panel)" stroke-width="3" paint-order="stroke">'+pc+'% of m1</text>';
+  });
+  idx.forEach(q=>{ s += '<text x="'+xOf(q)+'" y="'+(Hd-mb+14)+'" font-size="9" fill="#777" text-anchor="middle" transform="rotate(35 '+xOf(q)+' '+(Hd-mb+14)+')">'+(p[q].d||'')+'</text>'; });
+  s += '</svg>';
+  document.getElementById("m1Svg").innerHTML = s;
+  const rt = NEELY3.refinedText(rf);
+  document.getElementById("m1Head").innerHTML = '<b>'+an.id+'</b> · '+NEELY3.RULE_TEXT[an.rule]+' · m2/m1 '+Math.round(an.r2*100)+'%'+(an.r0!==undefined?' · m0/m1 '+Math.round(an.r0*100)+'%':'')+
+    ' · mg0='+an.mg0+' mg2='+an.mg2+'<br>Base list: '+an.list+(rf.covered?'<br><b>Pre-Constructive:</b> '+(rt||'(no paragraph fired)')+(rf.notes.length?'<br><span style="color:var(--ink-soft)">'+rf.notes.join('<br>')+'</span>':'')+(rf.pending.length?'<br><span style="color:var(--ink-soft)">Still open (waves not formed yet): '+rf.pending.length+'</span>':''):'<br><span style="color:var(--ink-soft)">Pre-Constructive paragraphs for this Rule are not coded yet.</span>');
+  const rows = wk.map(k=>{ const w=X.W[k], a=p[w.s], b=p[w.e], len=Math.abs(b.v-a.v), dt=days(Math.max(b.t-a.t,0));
+    return '<tr style="'+(k===1?'font-weight:700;background:#92400e18':'')+'"><td style="color:'+col(k)+'"><b>m'+(k<0?'('+k+')':k)+'</b>'+(w.e-w.s>1?' ('+(w.e-w.s)+' mw)':'')+'</td><td>'+(a.d||'')+'</td><td>'+fmtPrice(a.v)+'</td><td>'+(b.d||'')+'</td><td>'+fmtPrice(b.v)+'</td><td>'+(b.v>a.v?'↑':'↓')+'</td><td>'+fmtPrice(len)+'</td><td>'+Math.round(len/L1*100)+'%</td><td>'+dt.toFixed(1)+'</td><td>'+Math.round(dt/days(p[an.b].t-p[an.a].t)*100)+'%</td></tr>'; });
+  document.getElementById("m1Tbl").innerHTML = '<table style="border-collapse:collapse;width:100%" cellpadding="3"><tr style="text-align:left;border-bottom:1px solid var(--grid)"><th>wave</th><th>from</th><th>price</th><th>to</th><th>price</th><th></th><th>length</th><th>% of m1</th><th>days</th><th>time % of m1</th></tr>'+rows.join("")+'</table>';
+}
+document.getElementById("btnM1View").addEventListener("click", ()=>{ const c=document.getElementById("toggleRules"); if(!c.checked){ c.checked=true; window.__setRules(true); window.__render(); } openM1View(); });
+document.getElementById("m1Close").addEventListener("click", ()=>{ document.getElementById("m1Modal").style.display="none"; });
+document.getElementById("m1Sel").addEventListener("change", e=>{ __m1i = +e.target.value; drawM1View(); });
+document.getElementById("m1Eq").addEventListener("change", drawM1View);
+document.getElementById("m1Fib").addEventListener("change", drawM1View);
+document.getElementById("m1Modal").addEventListener("click", e=>{ if(e.target.id==="m1Modal") e.target.style.display="none"; });
 </script>
