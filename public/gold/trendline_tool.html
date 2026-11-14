@@ -208,6 +208,7 @@ body.embed{padding-left:8px; padding-right:8px;}
             <button id="btnSquare2" title="Second square (Neely Fig 3-10, non-directional action): an 8-inch square placed to the right of the directional square, its top-left corner on the directional square's top-right corner (the high). The dashed horizontal line is the vertical half-way point where the non-directional action should end at the right edge">▭ 2nd</button>
             <button id="btnFit2" title="Fit the view to the second square (same 8-inch scale, scrolled so the second square fills the chart). Click again to return to the directional square">▢▢ Fit 2</button>
             <button id="btnSqEnd" title="Set the top-right corner of the Neely square: click the pivot it should be bound to (default: the highest point of the tab). Click the same corner button again with no pivot to go back to the highest point">⌖ Corner</button>
+            <button id="btnOrigin" title="Real-terms tabs only: switch where the square and the 45° ray begin — the ~500 real low of 2001 (default) or the ~322 real low of Dec-1969">⟲ Origin 2001</button>
             <button id="btnNdSq" title="Non-directional square (Neely Fig 3-11): click the start (top-left corner) and then the end pivot. The right edge sits at the end time, the square's vertical half-way line is drawn at the end price, so the bottom is twice as far below the start">▭ ½</button>
             <button id="btnNeelyStart" title="Neely start 26-Sep-2022 (1632.15) to the Jan'26 ATH, drawn on this tab">⚑ Neely</button>
             <button id="btnMacro" title="Dec'24 low to Jan'26 ATH line and a duration box over the correction since">★ Macro</button>
@@ -292,13 +293,15 @@ function refreshSquareBtn(){
   btnSquare2.classList.toggle("active", !!square2Tabs[activeTab]);
 }
 // Neely's Rule of Proportion: the directional move (Neely start -> highest point) fills a square, start bottom-left, top-right at the end
+let realOrigin = "2001";
 function isRealTab(tb){ return tb==="yearlyreal" || tb==="twoyr"; }
 // origin of the Rule-of-Proportion square and the 45-degree ray: the Sep-2022 Neely start on the nominal tabs,
 // the lowest real-terms point of the 1968-2026 series (Dec-1969) on the real tabs
 function neelyOrigin(){
   if(isRealTab(activeTab)){
-    const raw = rawSeries(); let bi=0;
-    for(let i=1;i<raw.t.length;i++) if(raw.v[i]<raw.v[bi]) bi=i;
+    const raw = rawSeries(); let bi=-1;
+    const lo = realOrigin==="2001" ? toTime("1995-01-01") : -Infinity, hi = realOrigin==="2001" ? toTime("2006-01-01") : Infinity;
+    for(let i=0;i<raw.t.length;i++) if(raw.t[i]>=lo && raw.t[i]<hi && (bi<0 || raw.v[i]<raw.v[bi])) bi=i;
     return {t:raw.t[bi], v:raw.v[bi]};
   }
   return {t:toTime("2022-09-26"), v:1632.15};
@@ -335,6 +338,13 @@ btnSquare.addEventListener("click", ()=>{
   saveState(); refreshSquareBtn(); render();
 });
 function refreshRayBtn(){ btnRay45.classList.toggle("active", !!ray45Tabs[activeTab]); }
+const btnOrigin = document.getElementById("btnOrigin");
+btnOrigin.addEventListener("click", ()=>{
+  if(!isRealTab(activeTab)) return;
+  realOrigin = realOrigin==="2001" ? "1969" : "2001";
+  btnOrigin.textContent = "⟲ Origin " + realOrigin;
+  delete yOverride[activeTab]; render();
+});
 btnRay45.addEventListener("click", ()=>{ ray45Tabs[activeTab] = !ray45Tabs[activeTab]; saveState(); refreshRayBtn(); render(); });
 btnTagLevel.addEventListener("click", ()=>{ tagLevel = tagLevel===1 ? 2 : 1; btnTagLevel.classList.toggle("active", tagLevel===1); });
 const NS = "http://www.w3.org/2000/svg";
@@ -1767,7 +1777,7 @@ function updateTabUI(){
     rawLabel.textContent = "Yearly H-L (nominal)";
     pivALabel.textContent = "Monowave dots";
   } else if(activeTab==="twoyr"){
-    subText.textContent = "2.5-Yearly (H+L)/2 in REAL terms (Oct-2026 dollars), each bar = 30 months anchored Jan-1968 · semi-log · the 45° ray and the first square start at the real low of Dec-1969 and end at the Jan-2026 high";
+    subText.textContent = "2.5-Yearly (H+L)/2 in REAL terms (Oct-2026 dollars), each bar = 30 months anchored Jan-1968 · semi-log · the 45° ray and the first square start at the ~500 real low of 2001 (⟲ Origin switches to the Dec-1969 low) and end at the highest point";
     rawLabel.textContent = "2.5-Yearly (H+L)/2, real";
     pivALabel.textContent = "Monowave dots";
   } else if(activeTab==="yearlyreal"){
