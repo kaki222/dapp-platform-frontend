@@ -2089,7 +2089,7 @@ function render(){
         }
       });
       const rows = ISO.slice(-6).reverse().map(o=>'<div style="margin:2px 0;color:#6d28d9">⭘ '+desc(o)+'</div>');
-      listRows.push('<div style="margin:4px 0 6px;font-weight:700;color:#6d28d9">Isolated patterns (newest): '+ISO.length+' · compacted '+ISO.filter(o=>o.confirmed).length+'</div>'+rows.join(""));
+      listRows.push('<div style="margin:4px 0 6px;font-weight:700;color:#6d28d9">Isolated patterns (newest): '+ISO.length+' · compacted '+ISO.filter(o=>o.confirmed).length+'</div>'+(SR?'<div style="margin:0 0 6px;font-size:11px;color:#6d28d9">Series (Fig 4-3): '+SR.groups.filter(o=>o.parts.length===3||o.parts.length===5).length+' groups of 3/5 tested · '+SR.groups.filter(o=>o.series&&o.series.length).length+' fit a Series · '+Object.keys(SR.byWave).length+' wave(s) reduced (◆) · '+SR.groups.filter(o=>o.parts.length>5).length+' groups larger than 5 (not reduced) · '+SR.groups.filter(o=>o.parts.length<3||o.parts.length===4).length+' of 1, 2 or 4 parts (no Series)</div>':'<div style="font-size:11px;color:#b45309">Series matcher not loaded</div>')+rows.join(""));
     }
     // right-hand list: the newest monowaves
     AN.res.slice(-12).reverse().forEach(r=>{
