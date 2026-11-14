@@ -1394,7 +1394,11 @@ function render(){
 
   // ---- Neely Chapter 3: Retracement Rule tags at the end of each monowave (m1) ----
   if(showRulesFlag){
-    const src = (rejectableTab && redOnly) ? pivotSetA().filter(p=>(rejectedMono[activeTab]||[]).includes(p.t)) : pivotSetA();
+    // base pivots: the hand-validated (red) pivots when the tab has them (Neely: identify the monowave dots first, then apply the Rules); otherwise every dot
+    const redBase = rejectableTab ? pivotSetA().filter(p=>(rejectedMono[activeTab]||[]).includes(p.t)) : [];
+    const useRed = rejectableTab && (redOnly || redBase.length>=3);
+    const src = useRed ? redBase : pivotSetA();
+    const baseNote = '<div style="margin:0 0 6px;font-size:11px;color:var(--muted,#666)">Base pivots: <b>'+(useRed?'your red (validated) pivots':'all monowave dots')+'</b> ('+src.length+')</div>';
     const AN = NEELY3.analyseAll(src.map(p=>({t:p.t, v:p.v, d:p.d})));
     const fitted = !!squareTabs[activeTab];
     let drawn = 0;
@@ -1430,7 +1434,7 @@ function render(){
       listRows.push('<div style="margin:2px 0;border-bottom:1px solid var(--grid);padding-bottom:2px"><b>'+(r.pending?'m2 not yet confirmed':r.id)+'</b> · '+fmtPrice(pa.v)+' → '+fmtPrice(pb.v)+
         (r.pending?'':' · m2 '+Math.round(r.r2*100)+'%'+(r.r0!==undefined?' · m0 '+Math.round(r.r0*100)+'%':' · m0 ?')+' · mg2='+r.mg2+'<br><span style="color:var(--muted,#666)">'+(r.rf&&r.rf.covered&&NEELY3.refinedText(r.rf)?'<b>'+NEELY3.refinedText(r.rf)+'</b> ['+r.rf.fired.join(', ')+']':r.list)+'</span>')+'</div>');
     });
-    const rl = document.getElementById("ruleList"); if(rl) rl.innerHTML = listRows.join("") || "No monowaves.";
+    const rl = document.getElementById("ruleList"); if(rl) rl.innerHTML = baseNote + (listRows.join("") || "No monowaves.");
   } else { const rl = document.getElementById("ruleList"); if(rl) rl.innerHTML = '<span style="color:#888">Tick “Rules (Ch.3)” above the chart.</span>'; }
 
   // forecast: purple projected pivots chained from the last validated (red) pivot of this tab
