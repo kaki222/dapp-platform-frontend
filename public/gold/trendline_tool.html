@@ -620,6 +620,18 @@ const NEELY3 = (function(){
       }
       return false;
     };
+    // m3 as a group (Observation rules applied to m2) and the fraction of m2 retraced by the first n monowaves of m3
+    X.mg3 = null;
+    { const o2 = observe(p, W[2].s, W[2].e); if(o2.m2End!==null) X.mg3 = o2.m2End - W[2].e; }
+    X.firstN3 = n => { let m=0; for(let j=W[2].e+1; j<=Math.min(W[2].e+n, p.length-1); j++) m = Math.max(m, Math.abs(p[j].v-p[W[2].e].v)); return m/L(2); };
+    // price covered by m3 .. m5 (or as far as they exist)
+    X.cov35 = () => { const last = has(5) ? W[5].e : has(4) ? W[4].e : has(3) ? W[3].e : null; return last===null ? null : Math.abs(p[last].v - p[W[3].s].v); };
+    X.approaches = (wk, win) => {              // market approaches/exceeds the beginning of m(wk) in <= 50% of the time m(wk)..m(win) took
+      if(!has(wk) || !has(win)) return null;
+      const target = p[W[wk].s].v, span = p[W[win].e].t - p[W[wk].s].t, from = W[win].e;
+      for(let q=from+1; q<p.length; q++){ if((p[W[wk].e].v>p[W[wk].s].v) ? p[q].v<=target+0.0*0 : p[q].v>=target) return (p[q].t-p[from].t) <= 0.5*span; }
+      return false;
+    };
     return X;
   }
   const and = (...v) => v.some(x=>x===false) ? false : (v.some(x=>x===null||x===undefined||Number.isNaN(x)) ? null : true);
@@ -913,13 +925,117 @@ const NEELY3 = (function(){
     add("f",{id:"3f·3",place:["s5","(F3)"],note:"m3 = 100..161.8% of m2",f:X=>tri(X,[3],()=>X.L(3)>=X.L(2) && X.L(3)<1.618*X.L(2))});
   })();
 
+
+  // ---------- Rule 1 ---------- (m2 < 38.2% of m1). Conditions: a m0<61.8, b <100, c <=161.8, d >161.8
+  const RULE1 = [
+   {c:"a",id:"1a·1",place:["5"],note:"m2 takes as much time as m1 or m3: place 5",f:X=>tri(X,[3],()=>X.T(2)>=X.T(1)||X.T(2)>=X.T(3))},
+   {c:"a",id:"1a·2",place:["s5"],add:["x:c3? (end of m2)"],note:"m(-1) = 100..161.8% of m0, m0 very close to 61.8% of m1, m4 does not exceed the end of m0: Flat inside a Complex formation, m2 an x-wave",
+    f:X=>tri(X,[-1,0,4],()=>X.L(-1)>=X.L(0)&&X.L(-1)<=1.618*X.L(0)&&X.close618(X.L(0)/X.L(1))&&(X.up ? X.p[X.W[4].e].v > X.p[X.a].v : X.p[X.W[4].e].v < X.p[X.a].v))},
+   {c:"a",id:"1a·3",note:"m0 has > 3 monowaves and m1 retraces all of m0 in as much time or less: note on chart, an important Elliott pattern ends",
+    f:X=>tri(X,[0],()=>X.mg0>3&&X.L(1)>=X.L(0)&&X.T(1)<=X.T(0)+X.unit)},
+   {c:"a",id:"1a·4",add:["[c3]"],note:"Running Correction: m0~m2 in price and time (or 61.8%), m(-1) >= 161.8% of m1, m3 (..m5) covers >= m(-1) within m(-1)'s time",
+    f:X=>tri(X,[-1,0,3],()=>(X.eq(X.L(0),X.L(2))||X.rel618(X.L(0),X.L(2)))&&(X.eq(X.T(0),X.T(2))||X.rel618(X.T(0),X.T(2)))&&X.L(-1)>=1.618*X.L(1)&&X.cov35()>=X.L(-1)&&X.T(3)<=X.T(-1))},
+   {c:"a",id:"1a·5",add:["[c3]"],note:"Running Correction concluding more than one pattern: m0~m2, m(-1) < 161.8% of m1 and larger than m0, m3 or m5 >= 161.8% of m1",
+    f:X=>tri(X,[-1,0,3],()=>(X.eq(X.L(0),X.L(2))||X.rel618(X.L(0),X.L(2)))&&(X.eq(X.T(0),X.T(2))||X.rel618(X.T(0),X.T(2)))&&X.L(-1)<1.618*X.L(1)&&X.L(-1)>X.L(0)&&X.cov35()>=1.618*X.L(1))},
+   {c:"a",id:"1a·6",add:["x:c3 (end of m0 or center of m1)"],note:"Complex Correction: m0~m2 in price and time, m3 < 161.8% of m1 and fully retraced fast: x-wave at the end of m0 or hidden in m1",
+    f:X=>tri(X,[0,3],()=>(X.eq(X.L(0),X.L(2))||X.rel618(X.L(0),X.L(2)))&&(X.eq(X.T(0),X.T(2))||X.rel618(X.T(0),X.T(2)))&&X.L(3)<1.618*X.L(1)&&X.retracedFast(3)===true)},
+   {c:"a",id:"1a·7",note:"m0 and m2 obviously different, share no price range and m1 is not the shortest of m(-1),m1,m3: part of a larger Trending Impulse, keep s5",
+    f:X=>tri(X,[-1,0,3],()=>!(X.eq(X.L(0),X.L(2))) && !X.share(2,0) && !X.shortest(1,[-1,1,3]))},
+   {c:"b",id:"1b·0",place:["s5"],note:"Condition b: place s5",f:X=>true},
+   {c:"b",id:"1b·1",add:["x:c3? (end of m2)"],note:"m(-1) = 100..161.8% of m0 and m4 does not exceed the end of m0: Flat inside a Complex formation, m2 an x-wave",
+    f:X=>tri(X,[-1,0,4],()=>X.L(-1)>=X.L(0)&&X.L(-1)<=1.618*X.L(0)&&(X.up ? X.p[X.W[4].e].v > X.p[X.a].v : X.p[X.W[4].e].v < X.p[X.a].v))},
+   {c:"b",id:"1b·2",note:"m0 has > 3 monowaves and m1 retraces all of m0 in as much time or less: m0 might conclude an important Elliott pattern",
+    f:X=>tri(X,[0],()=>X.mg0>3&&X.L(1)>=X.L(0)&&X.T(1)<=X.T(0)+X.unit)},
+   {c:"b",id:"1b·3",add:["sL3"],note:"m2 shares range with m0, m3 longer and more vertical than m1 within m1's time, m(-1) longer than m1",
+    f:X=>tri(X,[-1,0,3],()=>X.share(2,0)&&X.L(3)>X.L(1)&&X.moreVert(3,1)&&X.T(3)<=X.T(1)&&X.L(-1)>X.L(1))},
+   {c:"b",id:"1b·4",add:["c3"],note:"5th-Extension Terminal completed with m3: m(-1) shorter than m1, m0/m2 differ, m4 returns to the start of m1 within 50% of m1..m3's time",
+    f:X=>tri(X,[-1,0,3,4],()=>and(X.share(2,0), X.L(3)>X.L(1), X.moreVert(3,1), X.T(3)<=X.T(1), X.L(-1)<X.L(1), !X.eq(X.L(0),X.L(2)),
+        (()=>{ const lim=0.5*(X.p[X.W[3].e].t-X.p[X.a].t); const tgt=X.p[X.a].v; const q=X.W[4].e; const hit=X.up ? X.p[q].v<=tgt : X.p[q].v>=tgt; return hit && (X.p[q].t-X.p[X.W[3].e].t)<=lim; })()))},
+   {c:"b",id:"1b·5",place:["c3"],note:"m3 < m1, m2 shares range with m0, m(-1) longer than m0, m1 not shortest of m(-1),m1,m3, market returns to the start of m1 within 50% of m(-1)..m3's time",
+    f:X=>tri(X,[-1,0,3],()=>and(X.L(3)<X.L(1), X.share(2,0), X.L(-1)>X.L(0), !X.shortest(1,[-1,1,3]),
+        (()=>{ const lim=0.5*(X.p[X.W[3].e].t-X.p[X.W[-1].s].t); return X.reachTime(X.W[3].e, X.p[X.a].v, !X.up)!==null && X.reachTime(X.W[3].e, X.p[X.a].v, !X.up)<=lim; })()))},
+   {c:"c",id:"1c·0",place:["s5"],note:"Condition c: place s5",f:X=>true},
+   {c:"c",id:"1c·1",add:["[c3]"],note:"m0~m1 in price (10%), m0/m1 equal or 61.8% in time, m3 longer and more vertical than m1, m2 >= time of m0 or m1 and very close to 38.2% of m1, m0 has F3",
+    f:X=>tri(X,[0,3],()=>and(Math.min(X.L(0),X.L(1))/Math.max(X.L(0),X.L(1))>=0.90, (X.eq(X.T(0),X.T(1))||X.rel618(X.T(0),X.T(1))), X.L(3)>X.L(1), X.moreVert(3,1),
+        X.T(2)>=Math.min(X.T(0),X.T(1)), Math.abs(X.L(2)/X.L(1)-0.382)<=0.05, X.hasLabel(0,"F3")))},
+   {c:"c",id:"1c·2",add:["(sL3)"],note:"second-to-last leg of a Contracting Triangle: m3 longer & more vertical than m1 and fully retraced or retraced <= 61.8%, m2 close to 38.2%, m0 has c3, m(-1)>m(-2), (m(-2) or m(-1)) > m0",
+    f:X=>tri(X,[-2,-1,0,3,4],()=>and(X.L(3)>X.L(1), X.moreVert(3,1), or(X.retracedAny(3), X.L(4)<=0.618*X.L(3)), Math.abs(X.L(2)/X.L(1)-0.382)<=0.05, X.hasLabel(0,"c3"), X.L(-1)>X.L(-2), (X.L(-2)>X.L(0)||X.L(-1)>X.L(0))))},
+   {c:"d",id:"1d·0",place:["s5"],note:"Condition d: the only possibility is s5",f:X=>true},
+  ];
+
+  // ---------- Rule 6 ---------- (m2 = 161.8..261.8% of m1)   [pp. 3-55, 3-56; checked on the scan]
+  const RULE6 = [
+   {c:"a",id:"6a·1",place:["5","s5"],note:"m2 has > 3 monowaves; first three retrace <= 61.8% of m1: Complex Correction (x-wave), missing x in m1, or 3rd wave of a 5th-Failure Impulse",
+    f:X=>X.mg2>3&&X.firstN(3)<=0.618},
+   {c:"a",id:"6a·2",place:["F3","5"],note:"m2 has > 3 monowaves; first three retrace > 61.8% of m1: wave-a of a Flat with a complex b, or of a 5th-Failure Impulse",f:X=>X.mg2>3&&X.firstN(3)>0.618},
+   {c:"a",id:"6a·3",place:["L5"],note:"m2 has <= 3 monowaves, retraced < 61.8% by m3",f:X=>X.mg2<=3 && tri(X,[3],()=>X.L(3)<0.618*X.L(2))},
+   {c:"a",id:"6a·3L",add:["L3"],note:"m0 and m(-2) share price territory",f:X=>X.mg2<=3 && tri(X,[-2,0,3],()=>X.L(3)<0.618*X.L(2) && X.share(0,-2))},
+   {c:"a",id:"6a·4",place:["L5"],note:"m2 has <= 3 monowaves, retraced 61.8% or more by m3",f:X=>X.mg2<=3 && tri(X,[3],()=>X.L(3)>=0.618*X.L(2))},
+   {c:"a",id:"6a·5",place:["L5"],note:"m1 (plus one time unit) fully retraced in as much time or less: Trending Impulse may have completed with m1",f:X=>X.mg2<=3 && X.retracedFast(1)},
+   {c:"a",id:"6a·6",add:["(L3)"],note:"Terminal Impulse completed with m1: m1 fast-retraced, m3 < m2, m2 approaches the beginning of m(-3) within 50% of m(-3)..m1's time, m0 and m(-2) share price",
+    f:X=>X.mg2<=3 && tri(X,[-3,-2,0,3],()=>and(X.retracedFast(1), X.L(3)<X.L(2), X.share(0,-2), (()=>{ const lim=0.5*(X.p[X.b].t-X.p[X.W[-3].s].t); const rt=X.reachTime(X.W[2].e, X.p[X.W[-3].s].v, !X.up); return rt!==null && rt<=lim; })()))},
+   {c:"a",id:"6a·7",place:["F3"],add:["x:c3? (end of m0)"],note:"m1 retraced slower, m2 does not exceed the end of m(-2), m(-1) >= 61.8% of m1, m(-2) shorter than m(-1): wave-a of a Flat concluding a Complex Correction, m0 the x-wave",
+    f:X=>X.mg2<=3 && tri(X,[-2,-1,0],()=>and(X.retracedSlow(1), !(X.up ? X.p[X.W[2].e].v < X.p[X.W[-2].e].v : X.p[X.W[2].e].v > X.p[X.W[-2].e].v), X.L(-1)>=0.618*X.L(1), X.L(-2)<X.L(-1)))},
+   {c:"b",id:"6b·1",place:["5","s5"],note:"m3 has > 3 monowaves; its first three retrace <= 61.8% of m2: Complex Correction (x-wave after m2), missing wave in m2, or m2 the 3rd wave of a 5th-Failure Impulse",f:X=>tri(X,[3],()=>X.mg3!==null && X.mg3>3 && X.firstN3(3)<=0.618)},
+   {c:"b",id:"6b·2",place:["F3","5"],note:"m3 has > 3 monowaves; its first three retrace > 61.8% of m2: wave-a of a Flat with a complex b, or of a 5th-Failure Impulse",f:X=>tri(X,[3],()=>X.mg3!==null && X.mg3>3 && X.firstN3(3)>0.618)},
+   {c:"b",id:"6b·3",place:["x:c3"],note:"m3 has <= 3 monowaves; m1 <= m0 in time or <= m2 in time, m(-2) shorter than m(-1): x-wave of a Complex Correction (OCR 'c:c3' read as x:c3)",unsure:true,
+    f:X=>tri(X,[-2,-1,0,3],()=>X.mg3<=3 && (X.T(1)<=X.T(0)||X.T(1)<=X.T(2)) && X.L(-2)<X.L(-1))},
+   {c:"b",id:"6b·4",place:["F3"],note:"m1 takes as much time as m0 or m2 and m0 is close to 161.8% of m1: part of a Zigzag or Impulse",
+    f:X=>tri(X,[0,3],()=>X.mg3<=3 && (X.T(1)>=X.T(0)||X.T(1)>=X.T(2)) && X.close618(X.L(1)/X.L(0)))},
+   {c:"b",id:"6b·5",place:["L5"],note:"C-wave of a Flat: m1 fast-retraced by m2, m2 retraced < 61.8% or > 100%, m(-1) >= 61.8% of m1 in price and time",
+    f:X=>tri(X,[-1,3],()=>X.mg3<=3 && and(X.retracedFast(1), (X.L(3)<0.618*X.L(2)||X.L(3)>X.L(2)), X.L(-1)>=0.618*X.L(1), X.T(-1)>=0.618*X.T(1)))},
+   {c:"b",id:"6b·6",place:["L3","L5"],note:"Contracting Triangle or a Flat variation: m1 fast-retraced, m2 retraced < 61.8%, m(-1) >= 61.8% of m0 in price and time",
+    f:X=>tri(X,[-1,0,3],()=>X.mg3<=3 && and(X.retracedFast(1), X.L(3)<0.618*X.L(2), X.L(-1)>=0.618*X.L(0), X.T(-1)>=0.618*X.T(0)))},
+   {c:"b",id:"6b·7",place:["c3"],note:"m1 retraced slower, m2 has >= 3 monowaves and is longer than m(-1) and m0: middle leg of a Triangle",
+    f:X=>tri(X,[-1,0,3],()=>X.mg3<=3 && and(X.retracedSlow(1), X.mg2>=3, X.L(2)>X.L(-1), X.L(2)>X.L(0)))},
+   {c:"b",id:"6b·8",add:["sL3"],note:"Terminal concluded with m2: m2 fast-retraced, m0 not the shortest of m(-2),m0,m2, fast return toward m(-2)",
+    f:X=>tri(X,[-2,0,3],()=>X.mg3<=3 && and(X.retracedFast(2), !X.shortest(0,[-2,0,2]), X.approaches(-2,2)))},
+   {c:"b",id:"6b·9",add:["[F3 -> c3 better]"],note:"m3 = 101..161.8% of m2: an Expanding Triangle may be forming; if F3 is present, bracket it",f:X=>tri(X,[3],()=>X.mg3<=3 && X.L(3)>1.01*X.L(2) && X.L(3)<=1.618*X.L(2))},
+   {c:"c",id:"6c·0",place:["F3"],note:"Condition c: F3 is a good possibility whatever happens",f:X=>true},
+   {c:"c",id:"6c·1",place:["L3","(L5)"],note:"Contracting Triangle or severe C-Failure Flat: m1 fast-retraced, m2 < 61.8%, m2 exceeded m0's length within m0's time, m(-1) = 61.8..161.8% of m0, m2 larger and more vertical than m0",
+    f:X=>tri(X,[-1,0,3],()=>and(X.retracedFast(1), X.L(3)<0.618*X.L(2), X.L(2)>X.L(0), X.moreVert(2,0), X.L(-1)>=0.618*X.L(0), X.L(-1)<=1.618*X.L(0)))},
+   {c:"c",id:"6c·2",add:["sL3"],note:"Terminal concluded with m2: m2 fast-retraced, m(-1) and m1 share price, m0 not shortest of m(-2),m0,m2, fast return toward m(-2)",
+    f:X=>tri(X,[-2,-1,0],()=>and(X.retracedFast(2), X.share(-1,1), !X.shortest(0,[-2,0,2]), X.approaches(-2,2)))},
+   {c:"c",id:"6c·3",add:["(c3)"],note:"m3 = 101..161.8% of m2: unlikely Expanding Triangle",f:X=>tri(X,[3],()=>X.L(3)>1.01*X.L(2) && X.L(3)<=1.618*X.L(2))},
+   {c:"d",id:"6d·1",place:["F3"],note:"(T0-1) <= T1 or (T2-1) <= T1, and m1 not shorter in time than both: first phase of a larger correction, or the end of a correction inside a Zigzag/Impulse",
+    f:X=>tri(X,[0],()=>(X.T(0)-X.unit<=X.T(1)||X.T(2)-X.unit<=X.T(1)) && !(X.T(1)<X.T(0)&&X.T(1)<X.T(2)))},
+   {c:"d",id:"6d·2",place:["(L3)","(L5)"],note:"small chance of a Contracting Triangle / severe C-Failure Flat: m2 retraced < 61.8%, time of m2..m4 <= m0's, m2..m4 coverage larger and more vertical than m0",
+    f:X=>tri(X,[0,3,4],()=>{ const cov=Math.abs(X.p[X.W[4].e].v-X.p[X.b].v), tm=X.p[X.W[4].e].t-X.p[X.b].t; return and(X.L(3)<0.618*X.L(2), tm<=X.T(0), cov>X.L(0), cov/tm>X.L(0)/X.T(0)); })},
+  ];
+
+  // ---------- Rule 7 ---------- (m2 > 261.8% of m1)   Condition a: pp. 3-57 (checked on the scan); b-d from the OCR text (verify on the scan)
+  const RULE7 = [
+   {c:"a",id:"7a·1",place:["5","s5"],add:["x:c3? (end of m2)"],note:"m2 has > 3 monowaves; first three retrace <= 61.8% of m1: Complex Correction, missing x in m1, or 3rd wave of a 5th-Failure Impulse",f:X=>X.mg2>3&&X.firstN(3)<=0.618},
+   {c:"a",id:"7a·2",place:["F3","5"],note:"m2 has > 3 monowaves; first three retrace > 61.8% of m1: wave-a of a Flat with a complex b-wave, or wave-3 of a 5th-Failure Impulse",f:X=>X.mg2>3&&X.firstN(3)>0.618},
+   {c:"a",id:"7a·3",place:["L5"],note:"m2 has <= 3 monowaves: whatever the surrounding evidence, L5 is very likely",f:X=>X.mg2<=3},
+   {c:"a",id:"7a·4",add:["(L3)"],note:"m2 retraced < 61.8%, m(-2) shorter than m(-1), m(-2) and m0 share price: a Terminal Impulse may have completed with m1",
+    f:X=>X.mg2<=3 && tri(X,[-2,-1,0,3],()=>X.L(3)<0.618*X.L(2) && X.L(-2)<X.L(-1) && X.share(-2,0))},
+   {c:"b",id:"7b·1",place:["F3","c3","L3","L5"],add:["x:c3?"],note:"m3 has > 3 monowaves; first three retrace <= 61.8% of m2 (OCR text, verify)",unsure:true,f:X=>tri(X,[3],()=>X.mg3!==null && X.mg3>3 && X.firstN3(3)<=0.618)},
+   {c:"b",id:"7b·2",place:["F3","5"],note:"first three monowaves of m3 retrace > 61.8% of m2 (OCR text, verify)",unsure:true,f:X=>tri(X,[3],()=>X.mg3!==null && X.mg3>3 && X.firstN3(3)>0.618)},
+   {c:"b",id:"7b·3",place:["c3"],note:"m0 >= 61.8% of m1 and m3 = 100..261.8% of m2: part of an Expanding Triangle (OCR text, verify)",unsure:true,
+    f:X=>tri(X,[0,3],()=>X.mg3<=3 && X.L(0)>=0.618*X.L(1) && X.L(3)>=X.L(2) && X.L(3)<=2.618*X.L(2))},
+   {c:"b",id:"7b·4",place:["c3","L5"],note:"m1 not much more than 61.8% of m0; m2 retraced < 61.8% or > 100% quickly: Contracting Triangle or C-Failure Flat (OCR text, verify)",unsure:true,
+    f:X=>tri(X,[0,3],()=>X.mg3<=3 && X.L(1)<=0.70*X.L(0) && (X.L(3)<0.618*X.L(2)||X.L(3)>X.L(2)) && X.cov35()!==null && X.moreVert(2,0))},
+   {c:"b",id:"7b·5",place:["c3"],note:"m2 retraced 61.8..100%: an Elongated Flat concluded with m2 (OCR text, verify)",unsure:true,f:X=>tri(X,[3],()=>X.mg3<=3 && X.L(3)>=0.618*X.L(2) && X.L(3)<X.L(2))},
+   {c:"b",id:"7b·6",place:["L5"],note:"m2 fully retraced in as much time or less: a Trending Impulse may have concluded with m2 (OCR text, verify)",unsure:true,f:X=>X.mg3!==null && X.mg3<=3 && X.retracedFast(2)},
+   {c:"c",id:"7c·1",place:["F3"],note:"m1 takes as much time as m0 or m2: F3 is a good possibility (OCR text, verify)",unsure:true,f:X=>tri(X,[0],()=>X.T(1)>=X.T(0)||X.T(1)>=X.T(2))},
+   {c:"c",id:"7c·2",place:["L5"],note:"Running Correction completed with m1: m1 fast-retraced, m2 >= 161.8% of m0 (and breaks the m(-3)/m(-1) line) (OCR text, verify)",unsure:true,
+    f:X=>tri(X,[-3,-1,0],()=>and(X.retracedFast(1), X.L(2)>=1.618*X.L(0), (()=>{ const ta=X.p[X.W[-3].e].t, va=X.p[X.W[-3].e].v, tb=X.p[X.W[-1].e].t, vb=X.p[X.W[-1].e].v, sl=(vb-va)/(tb-ta); const q=X.b; const lv=va+sl*(X.p[q].t-ta); return X.up ? X.p[q].v>lv : X.p[q].v<lv; })()))},
+   {c:"d",id:"7d·1",place:["F3"],note:"m1 takes as much time (or less) as m0 or m2: part of a Zigzag or Impulse (OCR text, verify)",unsure:true,f:X=>tri(X,[0],()=>X.T(1)<=X.T(0)||X.T(1)<=X.T(2))},
+   {c:"d",id:"7d·2",place:["c3"],note:"m1 <= m0 in time and/or <= m2: c3 (OCR text, verify)",unsure:true,f:X=>tri(X,[0],()=>X.T(1)<=X.T(0)||X.T(1)<=X.T(2))},
+   {c:"d",id:"7d·3",add:["x:c3"],note:"m2 retraced < 61.8%, m2 coverage = 61.8..161.8% of m0, m(-1) shorter than m0 and <= 161.8% of m0: m1 may be an x-wave (OCR text, verify)",unsure:true,
+    f:X=>tri(X,[-1,0,3],()=>X.L(3)<0.618*X.L(2) && X.L(2)>=0.618*X.L(0) && X.L(2)<=1.618*X.L(0) && X.L(-1)<X.L(0) && X.L(-1)<=1.618*X.L(0))},
+   {c:"d",id:"7d·4",place:["L3"],note:"small chance of a Contracting Triangle: m2 < 61.8%, larger and more vertical than m0, m(-1) <= 161.8% of m0 and shares range with m1, m0 has a 3 (OCR text, verify)",unsure:true,
+    f:X=>tri(X,[-1,0,3],()=>X.L(3)<0.618*X.L(2) && X.moreVert(2,0) && X.L(-1)<=1.618*X.L(0) && X.share(-1,1))},
+  ];
+
   // run the paragraphs of the monowave's Rule/Condition. Returns {placed:[{lab,id}], added:[..], notes:[..], pending:[..], fired:[ids]}
   function refine(p, i, unit, an){
     an = an || analyse(p, i);
     const out = {placed:[], added:[], dropped:[], notes:[], pending:[], fired:[], covered:false, unsure:false};
     if(!an || an.pending || !an.cond) return out;
-    const table = an.rule===2 ? RULE2 : an.rule===3 ? RULE3 : an.rule===4 ? RULE4 : an.rule===5 ? RULE5 : null;
-    if(!table) return out;                           // Rules 1,6,7: not coded yet
+    const table = an.rule===1 ? RULE1 : an.rule===2 ? RULE2 : an.rule===3 ? RULE3 : an.rule===4 ? RULE4 : an.rule===5 ? RULE5 : an.rule===6 ? RULE6 : an.rule===7 ? RULE7 : null;
+    if(!table) return out;
     if(an.rule===4 && !an.cat){ out.covered = true; out.notes.push("Rule 4 needs m3 >= 100% of m2 for a Category: base list only"); return out; }
     out.covered = true;
     const X = ctx(p, i, unit||1);
@@ -949,6 +1065,7 @@ const NEELY3 = (function(){
       out.placed = out.placed.filter(x=>!dropSet.has(norm(x.lab)));
       out.added  = out.added.filter(x=>!dropSet.has(norm(x.lab)));
     }
+    { const seen = new Set(); out.placed = out.placed.filter(x=>{ if(seen.has(x.lab)) return false; seen.add(x.lab); return true; }); out.added = out.added.filter(x=>{ if(seen.has(x.lab)) return false; seen.add(x.lab); return true; }); }
     // fall-backs ("none of the above fit" lines of Rule 5)
     if(!out.placed.length){
       const fb = table.find(q => q.c===an.cond && q.f===null);
@@ -1018,7 +1135,7 @@ const NEELY3 = (function(){
     return r;
   }
 
-  return {clean, observe, analyse, analyseAll, ruleOf, condOf, catOf, listFor, neutralityFlag, RULE_TEXT, LISTS, ctx, refine, refinedText, RULE2, RULE3, RULE4, RULE5, neutral};
+  return {clean, observe, analyse, analyseAll, ruleOf, condOf, catOf, listFor, neutralityFlag, RULE_TEXT, LISTS, ctx, refine, refinedText, RULE1, RULE2, RULE3, RULE4, RULE5, RULE6, RULE7, neutral};
 })();
 /*NEELY_CH3_END*/
 const NS = "http://www.w3.org/2000/svg";
@@ -1645,7 +1762,7 @@ function render(){
         lab.textContent = r.id + (showRuleLab && rtxt ? " " + rtxt.replace(/ \([^)]*\)/g,"") : "");
         const ttl = document.createElementNS(NS,"title");
         ttl.textContent = r.id+" · "+NEELY3.RULE_TEXT[r.rule]+" · m2/m1 "+Math.round(r.r2*100)+"%"+(r.r0!==undefined?" · m0/m1 "+Math.round(r.r0*100)+"%":"")+" · mg0="+r.mg0+" mg2="+r.mg2+(r.cat?" · m3/m2 "+Math.round(r.r3*100)+"%":"")+"\nBase list: "+r.list+
-          (r.rf && r.rf.covered ? "\nPre-Constructive: "+(rtxt||"(no paragraph fired)")+(r.rf.notes.length?"\n"+r.rf.notes.join("\n"):"")+(r.rf.pending.length?"\nStill open (needs later waves): "+r.rf.pending.length:"") : "\n(Pre-Constructive paragraphs for Rules 1, 6, 7 not coded yet)");
+          (r.rf && r.rf.covered ? "\nPre-Constructive: "+(rtxt||"(no paragraph fired)")+(r.rf.notes.length?"\n"+r.rf.notes.join("\n"):"")+(r.rf.pending.length?"\nStill open (needs later waves): "+r.rf.pending.length:"") : "\n(no Pre-Constructive paragraphs for this Rule)");
         lab.appendChild(ttl);
         lab.style.cursor="pointer"; lab.addEventListener("click", ev=>{ ev.stopPropagation(); openM1View(r.i); });
         g.appendChild(lab); drawn++;
@@ -3232,7 +3349,7 @@ function drawM1View(){
   document.getElementById("m1Svg").innerHTML = s;
   const rt = NEELY3.refinedText(rf);
   document.getElementById("m1Head").innerHTML = '<b>'+an.id+'</b> · '+NEELY3.RULE_TEXT[an.rule]+' · m2/m1 '+Math.round(an.r2*100)+'%'+(an.r0!==undefined?' · m0/m1 '+Math.round(an.r0*100)+'%':'')+
-    ' · mg0='+an.mg0+' mg2='+an.mg2+'<br>Base list: '+an.list+(rf.covered?'<br><b>Pre-Constructive:</b> '+(rt||'(no paragraph fired)')+(rf.notes.length?'<br><span style="color:var(--ink-soft)">'+rf.notes.join('<br>')+'</span>':'')+(rf.pending.length?'<br><span style="color:var(--ink-soft)">Still open (waves not formed yet): '+rf.pending.length+'</span>':''):'<br><span style="color:var(--ink-soft)">Pre-Constructive paragraphs for this Rule are not coded yet.</span>');
+    ' · mg0='+an.mg0+' mg2='+an.mg2+'<br>Base list: '+an.list+(rf.covered?'<br><b>Pre-Constructive:</b> '+(rt||'(no paragraph fired)')+(rf.notes.length?'<br><span style="color:var(--ink-soft)">'+rf.notes.join('<br>')+'</span>':'')+(rf.pending.length?'<br><span style="color:var(--ink-soft)">Still open (waves not formed yet): '+rf.pending.length+'</span>':''):'<br><span style="color:var(--ink-soft)">No Pre-Constructive paragraph fired / none for this Rule.</span>');
   const rows = wk.map(k=>{ const w=X.W[k], a=p[w.s], b=p[w.e], len=Math.abs(b.v-a.v), dt=days(Math.max(b.t-a.t,0));
     return '<tr style="'+(k===1?'font-weight:700;background:#92400e18':'')+'"><td style="color:'+col(k)+'"><b>m'+(k<0?'('+k+')':k)+'</b>'+(w.e-w.s>1?' ('+(w.e-w.s)+' mw)':'')+'</td><td>'+(a.d||'')+'</td><td>'+fmtPrice(a.v)+'</td><td>'+(b.d||'')+'</td><td>'+fmtPrice(b.v)+'</td><td>'+(b.v>a.v?'↑':'↓')+'</td><td>'+fmtPrice(len)+'</td><td>'+Math.round(len/L1*100)+'%</td><td>'+dt.toFixed(1)+'</td><td>'+Math.round(dt/days(p[an.b].t-p[an.a].t)*100)+'%</td></tr>'; });
   document.getElementById("m1Tbl").innerHTML = '<table style="border-collapse:collapse;width:100%" cellpadding="3"><tr style="text-align:left;border-bottom:1px solid var(--grid)"><th>wave</th><th>from</th><th>price</th><th>to</th><th>price</th><th></th><th>length</th><th>% of m1</th><th>days</th><th>time % of m1</th></tr>'+rows.join("")+'</table>';
