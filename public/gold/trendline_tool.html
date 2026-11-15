@@ -225,7 +225,10 @@ body.embed{padding-left:8px; padding-right:8px;}
           <select id="rnA2" title="what to do with Aspect 2 periods when you press apply" style="font-size:12px"><option value="three">A2: three segments</option><option value="merge">A2: one monowave</option><option value="skip">A2: skip</option></select>
           <button type="button" id="btnRNUndo" class="toggle" style="cursor:pointer" title="Restore the red pivots as they were before the last apply RN">undo RN</button>
           <button type="button" id="btnRNApply" class="toggle" style="cursor:pointer" title="Remove the suggested dots from your red (validated) pivots">apply RN</button>
-          <button type="button" id="btnCompact" class="toggle" style="cursor:pointer" title="Define a compacted pattern: click the R-tag at its start pivot, then the R-tag at its end pivot. The tool tests it (Fig 3-36, Standard Series), gives its base :3 / :5 and its Complexity Level">⊞ compact</button>
+          <button type="button" id="btnCompact" class="toggle" style="cursor:pointer" title="Compact Level-1: a pattern built straight from monowaves. Click its start pivot, then its end pivot (the dot, ring or R-tag). The tool tests it (Fig 3-36, Standard Series) and gives its base :3 / :5">⊞ L1</button>
+          <button type="button" id="btnCompactL2" class="toggle" style="cursor:pointer" title="Compact Level-2 (green square): a pattern whose highest component is a Level-1 compaction (p. 3-68). Click start pivot, then end pivot">⊞ L2</button>
+          <button type="button" id="btnCompactL3" class="toggle" style="cursor:pointer" title="Compact Level-3 (blue square): highest component is a Level-2 compaction. Click start pivot, then end pivot">⊞ L3</button>
+          <select id="compactBase" title="Base given to the next compaction: automatic (from the Standard Series / Fig 3-36) or forced :3 / :5. You can also click a compacted label to cycle it" style="font-size:11px"><option value="">base auto</option><option value="3">base :3</option><option value="5">base :5</option></select>
           <button type="button" id="btnCompactUndo" class="toggle" style="cursor:pointer" title="Remove the last compacted pattern you defined">↶ compact</button>
           <button type="button" id="btnM1View" class="toggle" style="cursor:pointer" title="Zoom on one monowave m1 with its m(-4)..m0 and m2..m4 neighbours (click an R-tag to choose it)">◎ m1 view</button>
           <label class="toggle" id="piWrap" title="Position Indicator Sequences (p.3-61..65): drop every label that has no legal neighbours, then run Pattern Isolation (circle the end of the first wave with only L5/L3, walk back three labels)"><input type="checkbox" id="togglePI"><span>PI + isolate</span></label>
@@ -1439,7 +1442,7 @@ const NEELY3 = (function(){
   // ===========================================================================================
   function compactInfo(p, PIw, comps){
     const idx = t => { for(let i=0;i<p.length;i++) if(p[i].t===t) return i; return -1; };
-    const list = (comps||[]).map((c,k)=>({k, ta:c.ta, tb:c.tb, ia:idx(c.ta), ib:idx(c.tb), baseOv:c.base||null})).filter(c=>c.ia>=0 && c.ib>c.ia);
+    const list = (comps||[]).map((c,k)=>({k, ta:c.ta, tb:c.tb, ia:idx(c.ta), ib:idx(c.tb), baseOv:c.base||null, lvl:c.lvl||0})).filter(c=>c.ia>=0 && c.ib>c.ia);
     list.sort((x,y)=>(x.ib-x.ia)-(y.ib-y.ia) || x.ia-y.ia);
     const done = [];
     list.forEach(c=>{
@@ -1451,7 +1454,9 @@ const NEELY3 = (function(){
         if(m){ parts.push({a:m.ia, b:m.ib, final:[":"+(m.base||"?")], compact:true, base:m.base||null, level:m.level}); i = m.ib; }
         else { const w = PIw ? PIw[i] : null; parts.push({a:i, b:i+1, final:w?w.final:[], compact:false, level:0, pending:!!(w&&w.pending)}); i++; }
       }
-      const lv = parts.map(x=>x.level), level = 1 + Math.max.apply(null, lv), warn = [];
+      const lv = parts.map(x=>x.level), levelAuto = 1 + Math.max.apply(null, lv), level = c.lvl || levelAuto, warn = [];
+      if(c.lvl && c.lvl < levelAuto) warn.push("you set Level "+c.lvl+" but it contains compactions of Level "+(levelAuto-1)+": by p. 3-68 it is Level "+levelAuto+" or more");
+      if(c.lvl && c.lvl > levelAuto) warn.push("you set Level "+c.lvl+" but its highest component is Level "+(levelAuto-1)+": by p. 3-68 it is Level "+levelAuto);
       if(Math.max.apply(null, lv) - Math.min.apply(null, lv) > 1) warn.push("components differ by more than one Complexity Level (p. 3-68)");
       let exceeded = false;
       const up = p[c.ib].v > p[c.ia].v;
@@ -1463,7 +1468,7 @@ const NEELY3 = (function(){
       else if(series.length){ const bs = Array.from(new Set(series.map(x=>x.base))); baseAuto = bs.length===1 ? bs[0] : null; }
       const base = c.baseOv || baseAuto;
       if(!series.length && !exceeded && !c.baseOv) warn.push(nP===3||nP===5 ? "no Standard Series fits these "+nP+" parts" : nP+" parts: not a 3 or 5 wave Standard pattern (Non-Standard / needs more compaction)");
-      const rec = {k:c.k, ta:c.ta, tb:c.tb, ia:c.ia, ib:c.ib, level, base, baseAuto, baseOv:c.baseOv, exceeded, series:series.map(x=>({id:x.id,name:x.name,base:x.base})), nParts:nP, warn};
+      const rec = {k:c.k, ta:c.ta, tb:c.tb, ia:c.ia, ib:c.ib, level, levelAuto, levelSet:c.lvl||0, base, baseAuto, baseOv:c.baseOv, exceeded, series:series.map(x=>({id:x.id,name:x.name,base:x.base})), nParts:nP, warn};
       done.push(rec);
     });
     return done;
@@ -1532,7 +1537,7 @@ let squareStart = {}; // {[tab]: {t,v}} user-chosen bottom-left corner (corner 1
 let squareEnd = {};   // {[tab]: {t,v}} user-chosen top-right corner of the Neely square (default: highest point)
 let ndSquares = [];   // [{id,tab,t0,v0,t1,v1}] non-directional squares: start top-left, end on the right edge at the 50% line
 let squareTabs = {}; // {[tab]: true} tabs fitted to Neely's square: start (Neely start) bottom-left, highest point top-right
-let compStore = {}, weakStore = {}, compactMode = false, compactPick = null;
+let compStore = {}, weakStore = {}, compactMode = false, compactPick = null, compactLevel = 1;
 try{ compStore = JSON.parse(localStorage.getItem("goldCompact_v1")||"{}")||{}; }catch(e){ compStore = {}; }
 try{ weakStore = JSON.parse(localStorage.getItem("goldWeak_v1")||"{}")||{}; }catch(e){ weakStore = {}; }
 const saveComp = ()=>{ try{ localStorage.setItem("goldCompact_v1", JSON.stringify(compStore)); }catch(e){} };
@@ -2093,7 +2098,7 @@ function render(){
     const fitted = !!squareTabs[activeTab];
     let drawn = 0;
     const listRows = [];
-    if(compactMode) listRows.push('<div style="margin:2px 0 6px;font-size:11px;color:#b91c1c;font-weight:700">Compact mode: click the R-tag at the START pivot, then the R-tag at the END pivot. Click a compacted label to cycle :3 / :5 / automatic, shift-click to delete.</div>');
+    if(compactMode) listRows.push('<div style="margin:2px 0 6px;font-size:11px;color:#b91c1c;font-weight:700">Compact Level-'+compactLevel+' mode: click the START pivot, then the END pivot (dot, ring or R-tag). Click a compacted label to cycle :3 / :5 / automatic, shift-click to delete.</div>');
     let unitT = Infinity; for(let q=1;q<AN.p.length;q++){ const d=AN.p[q].t-AN.p[q-1].t; if(d>0 && d<unitT) unitT=d; } if(!isFinite(unitT)) unitT=1;
     const yspan = Math.abs(sy(yDomain[0])-sy(yDomain[1])) || 1;
     window.__AN = AN; window.__unitT = unitT;
@@ -2137,9 +2142,11 @@ function render(){
         }
       }
     });
+    const ciSlot = {};   // several compactions can end on one pivot: lower levels sit next to the dot, higher ones further right
+    CI.slice().sort((p1,p2)=>p1.level-p2.level || (p2.ib-p2.ia)-(p1.ib-p1.ia)).forEach(c=>{ c.slot = ciSlot[c.ib] = (ciSlot[c.ib]===undefined ? 0 : ciSlot[c.ib]+1); });
     CI.forEach(ci=>{
       const pb = AN.p[ci.ib]; if(!pb || pb.t<xDomain[0] || pb.t>xDomain[1]) return;
-      const x = sx(pb.t)+10, y = sy(pb.v), txt = ":"+(ci.base||"?");
+      const x = sx(pb.t)+10+ci.slot*38, y = sy(pb.v), txt = ":"+(ci.base||"?");
       const col = ci.level<=1 ? "#111827" : ci.level===2 ? "#15803d" : "#1d4ed8";
       const grp = el("g",{}); grp.style.cursor = compactMode ? "pointer" : "default";
       if(ci.level>=2) grp.appendChild(el("rect",{x:x-5,y:y-17,width:32,height:24,rx:4,fill:ci.level===2?"#dcfce7":"#dbeafe",stroke:ci.level===2?"#16a34a":"#2563eb","stroke-width":2}));
@@ -2974,7 +2981,9 @@ window.__pickCompact = function(t){
   let a = compactPick, b = t; compactPick = null;
   if(a===b){ render(); return; }
   if(a>b){ const x=a; a=b; b=x; }
-  const arr = compStore[activeTab] || []; if(!arr.some(c=>c.ta===a && c.tb===b)) arr.push({ta:a, tb:b});
+  const arr = compStore[activeTab] || []; const cb = (document.getElementById("compactBase")||{}).value || "";
+  const ex = arr.find(c=>c.ta===a && c.tb===b);
+  if(ex){ ex.lvl = compactLevel; if(cb) ex.base = cb; } else { const o = {ta:a, tb:b, lvl:compactLevel}; if(cb) o.base = cb; arr.push(o); }
   compStore[activeTab] = arr; saveComp(); render();
 };
 window.__editCompact = function(ta, tb, del){
@@ -2990,12 +2999,16 @@ window.__toggleWeak = function(i, lab){
   saveWeak(); render();
   try{ if(typeof window.openM1View==="function" && document.getElementById("m1Head") && document.getElementById("m1Head").offsetParent!==null) window.openM1View(i); }catch(e){}
 };
-document.getElementById("btnCompact").addEventListener("click", ()=>{
-  compactMode = !compactMode; compactPick = null;
-  const b = document.getElementById("btnCompact"); b.style.background = compactMode ? "#fee2e2" : ""; b.style.borderColor = compactMode ? "#dc2626" : "";
+function setCompactLevel(L){
+  if(compactMode && compactLevel===L) compactMode = false; else { compactMode = true; compactLevel = L; }
+  compactPick = null;
+  [["btnCompact",1],["btnCompactL2",2],["btnCompactL3",3]].forEach(([id,l])=>{ const b = document.getElementById(id); const on = compactMode && compactLevel===l; b.style.background = on ? "#fee2e2" : ""; b.style.borderColor = on ? "#dc2626" : ""; });
   if(compactMode){ const c=document.getElementById("toggleRules"); if(!c.checked){ c.checked=true; showRulesFlag=true; } const p=document.getElementById("togglePI"); if(!p.checked){ p.checked=true; showPI=true; } }
   render();
-});
+}
+document.getElementById("btnCompact").addEventListener("click", ()=>setCompactLevel(1));
+document.getElementById("btnCompactL2").addEventListener("click", ()=>setCompactLevel(2));
+document.getElementById("btnCompactL3").addEventListener("click", ()=>setCompactLevel(3));
 document.getElementById("btnCompactUndo").addEventListener("click", ()=>{ const arr = compStore[activeTab] || []; arr.pop(); compStore[activeTab] = arr; compactPick = null; saveComp(); render(); });
 document.getElementById("togglePI").addEventListener("change", e=>{ showPI = e.target.checked; if(showPI){ const c=document.getElementById("toggleRules"); if(!c.checked){ c.checked=true; showRulesFlag=true; } } render(); });
 document.getElementById("toggleRN").addEventListener("change", e=>{ showRN = e.target.checked; render(); });
