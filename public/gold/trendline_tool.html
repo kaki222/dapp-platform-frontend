@@ -3176,17 +3176,28 @@ function impSearch(){
   const picks = [];
   scored.forEach(x=>{ if(picks.length>=2) return; if(picks.every(p=>p.ix.filter(i=>x.ix.indexOf(i)>=0).length<=3)) picks.push(x); });   // the 2nd best must be a different count: it may share at most 3 of the 6 pivots
   if(!scored.length) impNote = (impNote?impNote+" ":"")+"No 5-wave skeleton in this window passes the hard tests.";
+  // variant of the 1st best: the extended 5th wave is itself a 5th-wave failure, i.e. after its extreme the market makes a lower low and then a
+  // lower high, and the 5th ends on that lower high (its own last sub-wave fails to reach the end of its sub-wave 3)
+  if(picks.length){
+    const f = picks[0], dir = f.dirUp?1:-1, q1 = Q[f.ix[5]+1], q2 = Q[f.ix[5]+2], p5 = f.piv[5];
+    if(q1 && q2 && dir*q1.v<dir*p5.v && dir*q2.v>dir*q1.v && dir*q2.v<dir*p5.v){
+      const piv = f.piv.slice(0,5).concat([{t:q2.t, v:q2.v}]), c = new NEELY5.ImpulseCandidate(piv, 0, fine);
+      const bad = c.failed.map(t=>t.id).join(", ");
+      picks.push({c, ix:f.ix, piv, score:f.score, why:[], dirUp:f.dirUp, variant:true, tail:[p5,{t:q1.t,v:q1.v},{t:q2.t,v:q2.v}], alive:c.status==="alive",
+        ext:"5th ends "+fmtDate(q2.t)+", below the "+fmtDate(p5.t)+" extreme: its own last sub-wave fails"+(bad?" · fails hard test(s): "+bad:"")});
+    }
+  }
   return picks;
 }
 function impRun(){ impList = impSearch(); impSel = impList.length ? 0 : -1; impTab = activeTab; renderImpCard(); render(); }
 function renderImpCard(){
   const card = document.getElementById("impCard"); if(!card) return;
   card.hidden = !impOn; if(!impOn) return;
-  const lab = ["1st best","2nd best"];
   const rows = impList.map((x,k)=>{
+    const lab = x.variant ? "1st best · variant" : (k===0 ? "1st best" : "2nd best");
     const a=x.piv[0], b=x.piv[5], on = impSel===k;
     return '<div onclick="window.__impPick('+k+')" style="cursor:pointer;margin:5px 0;padding:5px 7px;border:1px solid '+(on?'#7c3aed':'#d4d4d8')+';border-radius:6px;background:'+(on?'#f3e8ff':'transparent')+'">'
-      +'<b style="color:#6d28d9">'+lab[k]+'</b> · '+(x.dirUp?'↑':'↓')+' '+fmtDate(a.t)+' → '+fmtDate(b.t)+' · '+x.c.variant.split(" ")[0]+' · score '+x.score.toFixed(1)
+      +'<b style="color:#6d28d9">'+lab+'</b> · '+(x.dirUp?'↑':'↓')+' '+fmtDate(a.t)+' → '+fmtDate(b.t)+' · '+x.c.variant.split(" ")[0]+(x.variant ? (x.alive?'':' · ruled out') : ' · score '+x.score.toFixed(1))
       +'<div style="font-size:11px;color:#52525b;margin-top:2px">'+x.ext+(x.why.length?' · '+x.why.join(' · '):'')+'</div></div>';
   }).join("");
   card.innerHTML = '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><b>Impulse ideas</b> <span style="font-size:11px;color:#71717a">'+impWinTxt+'</span>'
@@ -3205,16 +3216,25 @@ document.getElementById("btnImpulse").addEventListener("click", ()=>{
 function drawImpulseOverlay(){
   if(!impOn || impSel<0 || !impList[impSel] || impTab!==activeTab) return;
   const x = impList[impSel], g2 = el("g",{"clip-path":"url(#plotclip)","pointer-events":"none"});
-  const pts = x.piv.map(p=>[sx(p.t), sy(p.v)]);
-  g2.appendChild(el("polyline",{points:pts.map(q=>q[0]+","+q[1]).join(" "),fill:"none",stroke:"#7c3aed","stroke-width":4,"stroke-linejoin":"round",opacity:0.85}));
-  pts.forEach((q,i)=>{
-    const isHigh = (i%2===1) === x.dirUp;          // up impulse: odd pivots are highs
-    const cy = isHigh ? q[1]-17 : q[1]+17;
-    g2.appendChild(el("circle",{cx:q[0],cy:cy,r:11,fill:"#fff",stroke:"#7c3aed","stroke-width":2.5}));
-    const tx = el("text",{x:q[0],y:cy+5,"text-anchor":"middle","font-size":14,"font-weight":800,fill:"#6d28d9"}); tx.textContent = String(i); g2.appendChild(tx);
-  });
-  const lab = el("text",{x:pts[0][0]+14,y:pts[0][1]+(x.dirUp?34:-26),"font-size":12,"font-weight":700,fill:"#6d28d9",stroke:"var(--panel)","stroke-width":3,"paint-order":"stroke"});
-  lab.textContent = (impSel===0?"1st best":"2nd best")+" Impulse · "+x.c.variant.split(" ")[0]; g2.appendChild(lab);
+  const P = x.piv.map(p=>[sx(p.t), sy(p.v)]), COL = "#7c3aed";
+  // dimmed skeleton: thin soft line, a small dot on each pivot, the wave number written on its own leg
+  const main = x.variant ? P.slice(0,5).concat([[sx(x.tail[0].t), sy(x.tail[0].v)]]) : P;
+  g2.appendChild(el("polyline",{points:main.map(q=>q[0]+","+q[1]).join(" "),fill:"none",stroke:COL,"stroke-width":2.6,"stroke-linejoin":"round",opacity:0.38}));
+  if(x.variant){
+    const T = x.tail.map(p=>[sx(p.t), sy(p.v)]);
+    g2.appendChild(el("polyline",{points:T.map(q=>q[0]+","+q[1]).join(" "),fill:"none",stroke:COL,"stroke-width":2.4,"stroke-dasharray":"7 5","stroke-linejoin":"round",opacity:0.45}));
+    const e = T[2]; g2.appendChild(el("circle",{cx:e[0],cy:e[1],r:6,fill:"none",stroke:COL,"stroke-width":2,opacity:0.6}));
+    const tx = el("text",{x:e[0]-10,y:e[1]-8,"text-anchor":"end","font-size":11,"font-weight":700,fill:COL,opacity:0.8,stroke:"var(--panel)","stroke-width":3,"paint-order":"stroke"}); tx.textContent = "5 ends here (its own 5th fails)"; g2.appendChild(tx);
+  }
+  main.forEach(q=>g2.appendChild(el("circle",{cx:q[0],cy:q[1],r:3.5,fill:COL,opacity:0.5})));
+  for(let k=0;k<5;k++){                      // wave k+1 runs from pivot k to pivot k+1; its number sits at the middle of that leg, pushed to the outer side
+    const a = P[k], b = (x.variant && k===4) ? [sx(x.tail[0].t), sy(x.tail[0].v)] : P[k+1];
+    const mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2, up = b[1]<a[1];
+    const nx = up ? -1 : 1, off = 16;       // up-leg: label to its upper-left; down-leg: to its lower-right
+    const lx = mx + nx*off*0.7, ly = my + (up ? -off*0.5 : off*0.9);
+    g2.appendChild(el("circle",{cx:lx,cy:ly-4,r:10,fill:"var(--panel)",stroke:COL,"stroke-width":1.6,opacity:0.7}));
+    const t = el("text",{x:lx,y:ly,"text-anchor":"middle","font-size":13,"font-weight":800,fill:COL,opacity:0.85}); t.textContent = String(k+1); g2.appendChild(t);
+  }
   svg.appendChild(g2);
 }
 
