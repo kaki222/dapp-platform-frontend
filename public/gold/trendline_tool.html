@@ -3168,6 +3168,13 @@ function svgPoint(evt){
 svg.addEventListener("click", (evt)=>{
   if(evt.target.dataset && evt.target.dataset.handle) return; // handled by its own mousedown drag
   if(evt.target.dataset && evt.target.dataset.levelhandle) return; // handled by its own mousedown drag
+  if(compactMode && (mode==="idle" || mode==="pan")){
+    // compact mode: the pivot itself (dot, ring or circle) can be clicked, not only its R-tag text
+    const AN = window.__AN, q = svgPoint(evt); let best=null, bd=18;
+    if(AN && AN.p) AN.p.forEach(pt=>{ if(pt.t<xDomain[0] || pt.t>xDomain[1]) return; const d=Math.hypot(sx(pt.t)-q.x, sy(pt.v)-q.y); if(d<bd){ bd=d; best=pt; } });
+    if(best){ window.__pickCompact(best.t); }
+    return;
+  }
   if(mode==="idle" || mode==="pan") return;
   const p = svgPoint(evt);
   if(mode==="level"){
