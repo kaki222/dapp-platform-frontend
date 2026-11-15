@@ -107,7 +107,7 @@ svg.panning{cursor:grabbing;}
 .tg[data-g="draw"]{--g:#2563eb;} .tg[data-g="count"]{--g:#0891b2;} .tg[data-g="tags"]{--g:#0f766e;}
 .tg[data-g="val"]{--g:#dc2626;} .tg[data-g="plan"]{--g:#7c3aed;} .tg[data-g="marks"]{--g:#b45309;}
 .legendrow{display:flex; flex-wrap:wrap; gap:4px 12px; align-items:center; padding:4px 12px; border-bottom:1px solid var(--line); font-size:.78rem;}
-.chartrow{display:flex; align-items:stretch;}
+.chartrow{display:flex; align-items:stretch; position:relative;}
 .chartrow svg{flex:1; min-width:0; padding:0; height:auto;}
 .rail{width:46px; display:flex; flex-direction:column; gap:6px; padding:10px 6px; border-left:1px solid var(--line); background:var(--chip-bg);}
 .rail button{padding:8px 0; justify-content:center; font-size:1.05rem; width:100%;}
@@ -230,6 +230,7 @@ body.embed{padding-left:8px; padding-right:8px;}
           <button type="button" id="btnCompactL3" class="toggle" style="cursor:pointer" title="Compact Level-3 (blue square): highest component is a Level-2 compaction. Click start pivot, then end pivot">⊞ L3</button>
           <select id="compactBase" title="Base given to the next compaction: automatic (from the Standard Series / Fig 3-36) or forced :3 / :5. You can also click a compacted label to cycle it" style="font-size:11px"><option value="">base auto</option><option value="3">base :3</option><option value="5">base :5</option></select>
           <button type="button" id="btnCompactUndo" class="toggle" style="cursor:pointer" title="Remove the last compacted pattern you defined">↶ compact</button>
+          <button type="button" id="btnImpulse" class="toggle" style="cursor:pointer" title="Impulse ideas: searches the visible window for the best 5-wave Impulse skeletons that pass the Chapter 5 hard tests (R2-R7, Extension) and offers a First and a Second best. Click one to see it drawn on the chart, click it again to remove it">⌁ Impulse?</button>
           <button type="button" id="btnM1View" class="toggle" style="cursor:pointer" title="Zoom on one monowave m1 with its m(-4)..m0 and m2..m4 neighbours (click an R-tag to choose it)">◎ m1 view</button>
           <label class="toggle" id="piWrap" title="Position Indicator Sequences (p.3-61..65): drop every label that has no legal neighbours, then run Pattern Isolation (circle the end of the first wave with only L5/L3, walk back three labels)"><input type="checkbox" id="togglePI"><span>PI + isolate</span></label>
           <label class="toggle" id="ruleMinWrap" title="Hide tags of monowaves smaller than this % of the visible price range"><span>min size</span><input type="range" id="ruleMin" min="0" max="15" step="0.5" value="0" style="width:80px"><span id="ruleMinVal">0%</span></label>
@@ -238,6 +239,7 @@ body.embed{padding-left:8px; padding-right:8px;}
         <div class="chartrow" id="chartrow">
           <div id="splitWrap" hidden></div>
           <svg id="chart" viewBox="0 0 1180 620" preserveAspectRatio="xMidYMid meet"></svg>
+          <div id="impCard" hidden style="position:absolute;left:84px;top:10px;z-index:6;max-width:460px;background:var(--panel,#fff);border:1px solid #7c3aed;border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.18)"></div>
           <div class="rail">
             <button id="btnPan" title="Pan: drag to shift the date range (scroll zooms)">✋</button>
             <button id="btnReset" title="Reset view">⟲</button>
@@ -1492,6 +1494,92 @@ const NEELY3 = (function(){
   return {compactInfo, redCheck, clean, observe, analyse, analyseAll, ruleOf, condOf, catOf, listFor, neutralityFlag, RULE_TEXT, LISTS, ctx, refine, refinedText, RULE1, RULE2, RULE3, RULE4, RULE5, RULE6, RULE7, neutral, positionIndicators, isolate, SEQ, ALL_LABELS, SERIES, matchSeries, seriesReduce};
 })();
 /*NEELY_CH3_END*/
+/*NEELY_CH5_START*/
+// Chapter 5 — candidate patterns as objects. A Candidate covers adjacent swings (pivot s .. s+len), owns tests, and is never "decided" by feel:
+//   status = "ruled out" (a HARD test is false) | "open" (a HARD test cannot be answered yet) | "alive" (all hard tests pass; soft tests only rank).
+// Every test returns {id, rule, text, result:true|false|null, hard, note, implies}. Thresholds that the book does not give are marked "(my threshold)".
+(function(root){
+  const D = 86400000;
+  class Test { constructor(id, rule, text, result, hard, note, implies, source){ Object.assign(this,{id,rule,text,result,hard,note:note||"",implies:implies||null,source:source||"book"}); } }
+  class Candidate {
+    constructor(kind, p, s, nSw, fine){ this.kind = kind; this.p = p; this.s = s; this.n = nSw; this.fine = fine || null; this.tests = []; this.build(); }
+    get piv(){ return this.p.slice(this.s, this.s+this.n+1); }
+    leg(k){ return this.p[this.s+k+1].v - this.p[this.s+k].v; }
+    len(k){ return Math.abs(this.leg(k)); }
+    days(k){ return (this.p[this.s+k+1].t - this.p[this.s+k].t) / D; }
+    inner(k){ if(!this.fine) return null; const a=this.p[this.s+k].t, b=this.p[this.s+k+1].t; return this.fine.filter(q=>q.t>a && q.t<b).length; }
+    add(id, rule, text, result, hard, note, implies, source){ this.tests.push(new Test(id,rule,text,result,hard,note,implies,source)); }
+    build(){}
+    get status(){
+      if(this.tests.some(t=>t.hard && t.result===false)) return "ruled out";
+      if(this.tests.some(t=>t.hard && t.result===null)) return "open";
+      return "alive";
+    }
+    get failed(){ return this.tests.filter(t=>t.hard && t.result===false); }
+    get open(){ return this.tests.filter(t=>t.result===null); }
+    get implications(){ return this.failed.map(t=>t.implies).filter(Boolean); }
+  }
+  class ImpulseCandidate extends Candidate {
+    constructor(p, s, fine){ super("Impulse", p, s, 5, fine); }
+    build(){
+      const L = [0,1,2,3,4].map(k=>this.len(k)), f = x=>Math.round(x*100)/100;
+      // 5-2  Essential Construction Rules
+      this.add("R2","5-2 rule 2","segments 1, 3 and 5 thrust in the same direction",
+        Math.sign(this.leg(0))===Math.sign(this.leg(2)) && Math.sign(this.leg(2))===Math.sign(this.leg(4)), true);
+      this.add("R3","5-2 rule 3","wave 2 never retraces all of wave 1", L[1] < L[0], true, "w2/w1 = "+f(L[1]/L[0]));
+      this.add("R4","5-2 rule 4","wave 3 is longer than wave 2", L[2] > L[1], true, "w3/w2 = "+f(L[2]/L[1]));
+      this.add("R5","5-2 rule 5","wave 4 never retraces all of wave 3", L[3] < L[2], true, "w4/w3 = "+f(L[3]/L[2]));
+      this.add("R6","5-2 rule 6","wave 5 is at least 38.2% of wave 4", L[4] >= 0.382*L[3], true, "w5/w4 = "+f(L[4]/L[3])+(L[4]<L[3]?"  (5th-wave failure)":""));
+      this.add("R7","5-2 rule 7","wave 3 is never the shortest of 1, 3, 5", !(L[2] < L[0] && L[2] < L[4]), true, "w1 "+f(L[0])+" · w3 "+f(L[2])+" · w5 "+f(L[4]));
+      // 5-4  Extension Rule (the litmus test)
+      const odd = [["1",L[0]],["3",L[2]],["5",L[4]]].sort((a,b)=>b[1]-a[1]), ratio = odd[0][1]/odd[1][1];
+      let ext = ratio >= 1.618, viaEx2 = false, note = "longest = w"+odd[0][0]+", "+f(ratio*100)+"% of the next longest";
+      if(!ext){
+        const beyond = Math.abs((this.p[this.s+3].v) - (this.p[this.s+1].v)) <= 0.618*L[0];          // exception 1: 1st longest, 3rd does not end >61.8% beyond the end of the 1st
+        if(odd[0][0]==="1" && beyond){ ext = true; note += " · exception 1 (1st longest; 3rd ends within 61.8% beyond the end of the 1st)"; }
+        else if(odd[0][0]==="3" && L[4] < L[2]){ ext = true; viaEx2 = true; note += " · exception 2 (3rd longest, <161.8% of the 1st, 5th shorter: only a Terminal Impulse, p. 5-4)"; }
+      }
+      this.add("EXT","5-4 Extension Rule","longest of 1, 3, 5 is at least 161.8% of the next longest (or one of the two exceptions)", ext, true, note,
+        "no Extension: group is virtually certainly Corrective");
+      // 5-8 Overlap Rule: Trending (5-3-5-3-5): no part of wave 4 falls inside the price range of wave 2.  Terminal (3-3-3-3-3): wave 4 MUST partly enter wave 2's range.
+      const up = Math.sign(this.leg(0)) > 0, P = k => this.p[this.s+k].v;           // pivots 0..5 ; wave k = pivot k-1 -> k
+      const r2 = [Math.min(P(1),P(2)), Math.max(P(1),P(2))], r4 = [Math.min(P(3),P(4)), Math.max(P(3),P(4))];
+      const overlap = r4[0] < r2[1] && r4[1] > r2[0];
+      this.variant = overlap ? "Terminal (3-3-3-3-3)" : "Trending (5-3-5-3-5)";
+      this.add("OVL","5-8 Overlap Rule", overlap ? "wave 4 enters the price range of wave 2: only a Terminal Impulse can do that" : "wave 4 stays out of the price range of wave 2: Trending Impulse",
+        true, false, "wave 2 range "+f(r2[0])+" - "+f(r2[1])+" · wave 4 range "+f(r4[0])+" - "+f(r4[1]));
+      if(viaEx2) this.add("TERM","5-4 exception 2 + 5-8", "the Extension Rule was passed only through exception 2, which allows only a Terminal Impulse, and a Terminal needs wave 4 to overlap wave 2", overlap, true,
+        overlap ? "overlap present" : "no overlap: Terminal is impossible, so the exception does not rescue the Extension Rule",
+        "Impulse ruled out: Extension Rule not met (no Terminal possible without overlap)");
+      // 5-8 Rule of Equality: the two un-extended waves tend toward equality or a 61.8% relation in price and/or time
+      const ext3 = odd[0][0]; const pair = ext3==="1" ? [2,4] : ext3==="3" ? [0,4] : [0,2];        // leg indexes of the two un-extended waves
+      const eq = (a,b)=>{ const r = Math.min(a,b)/Math.max(a,b); return r>=0.8 || (r>=0.58 && r<=0.66); };
+      const pr = eq(L[pair[0]], L[pair[1]]), tm = eq(this.days(pair[0]), this.days(pair[1]));
+      this.add("EQL","5-8 Rule of Equality","the two un-extended waves (w"+(pair[0]+1)+" and w"+(pair[1]+1)+") are equal, or related by 61.8%, in price and/or time", pr || tm, false,
+        "price "+f(L[pair[0]])+" vs "+f(L[pair[1]])+" ("+Math.round(Math.min(L[pair[0]],L[pair[1]])/Math.max(L[pair[0]],L[pair[1]])*100)+"%) "+(pr?"✔":"✘")+" · time "+f(this.days(pair[0]))+"d vs "+f(this.days(pair[1]))+"d "+(tm?"✔":"✘")+" (equal >=80% or 58-66%: my tolerance)");
+      // 5-5 Rule of Alternation between waves 2 and 4 (at least one factor; preferably more)
+      const rat = (a,b)=>Math.max(a,b)/Math.max(1e-9,Math.min(a,b));
+      const fac = [];
+      fac.push(["price", rat(L[1],L[3])>=1.5, "w2 "+f(L[1])+" vs w4 "+f(L[3])+" (ratio "+f(rat(L[1],L[3]))+"; alternates at >=1.5, my threshold)"]);
+      fac.push(["time",  rat(this.days(1),this.days(3))>=1.5, "w2 "+f(this.days(1))+"d vs w4 "+f(this.days(3))+"d (ratio "+f(rat(this.days(1),this.days(3)))+"; >=1.5, my threshold)"]);
+      const s2 = L[1]/L[0], s4 = L[3]/L[2];
+      fac.push(["severity", Math.abs(s2-s4)>=0.2, "retrace "+Math.round(s2*100)+"% vs "+Math.round(s4*100)+"% (differ by >=20 points, my threshold)"]);
+      const i2 = this.inner(1), i4 = this.inner(3);
+      fac.push(["intricacy", i2===null ? null : (Math.abs(i2-i4)>=2 && rat(i2+1,i4+1)>=2), i2===null ? "no finer pivots supplied" : "finer pivots inside: w2 "+i2+" vs w4 "+i4+" (differ by >=2 and 2x, my threshold)"]);
+      fac.push(["construction", null, "needs the polywave type of w2 and w4 (Ch. 8): not tested"]);
+      const yes = fac.filter(x=>x[1]===true).map(x=>x[0]), unk = fac.filter(x=>x[1]===null).map(x=>x[0]);
+      this.add("ALT","5-5 Rule of Alternation","waves 2 and 4 alternate in at least one of price, time, severity, intricacy, construction",
+        yes.length ? true : (unk.length===1 && unk[0]==="construction" ? false : null), true,
+        fac.map(x=>(x[1]===true?"✔ ":x[1]===false?"✘ ":"? ")+x[0]+": "+x[2]).join(" | "),
+        "no Alternation: most likely a Complex Correction with a 'missing' x-wave in the centre of what was taken as wave 3 (p. 5-6) -> x:c3 can exist there");
+      this.alt = {yes, factors: fac};
+    }
+  }
+  const api = {Test, Candidate, ImpulseCandidate};
+  if(typeof module!=="undefined" && module.exports) module.exports = api; else root.NEELY5 = api;
+})(typeof window!=="undefined" ? window : globalThis);
+/*NEELY_CH5_END*/
+
 const NS = "http://www.w3.org/2000/svg";
 let W = 1180, H = 620;
 const M = {l:74, r:22, t:16, b:38};
@@ -1553,6 +1641,7 @@ let squareEnd = {};   // {[tab]: {t,v}} user-chosen top-right corner of the Neel
 let ndSquares = [];   // [{id,tab,t0,v0,t1,v1}] non-directional squares: start top-left, end on the right edge at the 50% line
 let squareTabs = {}; // {[tab]: true} tabs fitted to Neely's square: start (Neely start) bottom-left, highest point top-right
 let compStore = {}, weakStore = {}, compactMode = false, compactPick = null, compactLevel = 1;
+let impOn = false, impList = [], impSel = -1, impTab = null, impWinTxt = "", impNote = "";
 try{ compStore = JSON.parse(localStorage.getItem("goldCompact_v1")||"{}")||{}; }catch(e){ compStore = {}; }
 try{ weakStore = JSON.parse(localStorage.getItem("goldWeak_v1")||"{}")||{}; }catch(e){ weakStore = {}; }
 const saveComp = ()=>{ try{ localStorage.setItem("goldCompact_v1", JSON.stringify(compStore)); }catch(e){} };
@@ -2362,6 +2451,7 @@ function render(){
 
   renderList();
   renderHighlightList();
+  drawImpulseOverlay();
   renderCyanList();
   renderBoxList();
   renderPauseList();
@@ -3014,6 +3104,120 @@ window.__toggleWeak = function(i, lab){
   saveWeak(); render();
   try{ if(typeof window.openM1View==="function" && document.getElementById("m1Head") && document.getElementById("m1Head").offsetParent!==null) window.openM1View(i); }catch(e){}
 };
+
+// ---------- Impulse ideas: First / Second best 5-wave skeleton in the visible window (Chapter 5 hard tests), drawn on request ----------
+function impZigzag(P, thr){   // keep only the swing extremes that move at least thr (fraction) from the last kept one
+  if(P.length<3 || thr<=0) return P.slice();
+  const out=[P[0]]; let dir=0, ext=0;
+  for(let i=1;i<P.length;i++){
+    if(dir===0){ if(Math.abs(P[i].v-P[0].v)/P[0].v>=thr){ dir=P[i].v>P[0].v?1:-1; ext=i; } }
+    else if(dir===1){ if(P[i].v>P[ext].v) ext=i; else if((P[ext].v-P[i].v)/P[ext].v>=thr){ out.push(P[ext]); dir=-1; ext=i; } }
+    else { if(P[i].v<P[ext].v) ext=i; else if((P[i].v-P[ext].v)/P[ext].v>=thr){ out.push(P[ext]); dir=1; ext=i; } }
+  }
+  if(dir!==0 && out[out.length-1]!==P[ext]) out.push(P[ext]);
+  return out;
+}
+function impSearch(){
+  impNote = "";
+  const rej = rejectedMono[activeTab] || [];
+  const all = pivotSetA();
+  let P = (redOnly && rej.length) ? all.filter(p=>rej.includes(p.t)) : all.slice();
+  P = P.filter(p=>p.t>=xDomain[0] && p.t<=xDomain[1]);
+  impWinTxt = fmtDate(xDomain[0])+" → "+fmtDate(xDomain[1]);
+  if(P.length<6){ impNote = "Fewer than 6 pivots in the window."; return []; }
+  let thr = 0, Q = P;
+  for(const t of [0,0.004,0.008,0.012,0.02,0.03,0.045,0.07]){ thr=t; Q = impZigzag(P,t); if(Q.length<=34) break; }
+  if(thr>0) impNote = "Window has "+P.length+" pivots: counted only swings of "+(thr*100).toFixed(1)+"% or more ("+Q.length+" pivots).";
+  const n = Q.length; if(n<6) return [];
+  let lo=Infinity, hi=-Infinity; Q.forEach(p=>{ if(p.v<lo) lo=p.v; if(p.v>hi) hi=p.v; });
+  const rng = hi-lo, cache = {};
+  const ok = (a,b)=>{ const key=a*100+b; if(cache[key]!==undefined) return cache[key];
+    const l=Math.min(Q[a].v,Q[b].v), h=Math.max(Q[a].v,Q[b].v); let r=true;
+    for(let k=a+1;k<b;k++) if(Q[k].v<l || Q[k].v>h){ r=false; break; }
+    return cache[key]=r; };
+  const found = [];
+  for(const dir of [1,-1]){
+    const u = i=>dir*Q[i].v;
+    for(let i0=0;i0<n-5;i0++) for(let i1=i0+1;i1<n-4;i1++){
+      if(!(u(i1)>u(i0)) || !ok(i0,i1)) continue;
+      for(let i2=i1+1;i2<n-3;i2++){
+        if(!(u(i2)<u(i1) && u(i2)>u(i0)) || !ok(i1,i2)) continue;
+        for(let i3=i2+1;i3<n-2;i3++){
+          if(!(u(i3)>u(i1)) || !ok(i2,i3)) continue;
+          for(let i4=i3+1;i4<n-1;i4++){
+            if(!(u(i4)<u(i3) && u(i4)>u(i2)) || !ok(i3,i4)) continue;
+            for(let i5=i4+1;i5<n;i5++){
+              if(!(u(i5)>u(i4)) || !ok(i4,i5)) continue;
+              const w1=u(i1)-u(i0), w3=u(i3)-u(i2), w5=u(i5)-u(i4), w4=u(i3)-u(i4);
+              if(w5<0.382*w4 || (w3<w1 && w3<w5)) continue;
+              if(u(i5)-u(i0) < 0.25*rng) continue;
+              if(found.length<6000) found.push([i0,i1,i2,i3,i4,i5]);
+            }
+          }
+        }
+      }
+    }
+  }
+  const fine = all, scored = [];
+  found.forEach(ix=>{
+    const piv = ix.map(i=>({t:Q[i].t, v:Q[i].v}));
+    const c = new NEELY5.ImpulseCandidate(piv, 0, fine);
+    if(c.status!=="alive") return;
+    const T = id=>c.tests.find(t=>t.id===id);
+    let score = 0; const why = [];
+    if(T("EQL") && T("EQL").result){ score += 2; why.push("equality"); }
+    const alt = (c.alt && c.alt.yes) || []; score += alt.length; if(alt.length) why.push("alternation: "+alt.join(", "));
+    if(c.variant.indexOf("Trending")===0) score += 1;
+    const span = Math.abs(piv[5].v-piv[0].v)/rng; score += Math.min(2, 2*span);
+    const ex = T("EXT"); const viaEx = ex && /exception/.test(ex.note); if(viaEx) score -= 1;
+    scored.push({c, ix, piv, score, why, dirUp: piv[5].v>piv[0].v, ext: ex?ex.note.split(" · ")[0]:""});
+  });
+  scored.sort((a,b)=>b.score-a.score);
+  const picks = [];
+  scored.forEach(x=>{ if(picks.length>=2) return; if(picks.every(p=>p.ix.filter(i=>x.ix.indexOf(i)>=0).length<=3)) picks.push(x); });   // the 2nd best must be a different count: it may share at most 3 of the 6 pivots
+  if(!scored.length) impNote = (impNote?impNote+" ":"")+"No 5-wave skeleton in this window passes the hard tests.";
+  return picks;
+}
+function impRun(){ impList = impSearch(); impSel = impList.length ? 0 : -1; impTab = activeTab; renderImpCard(); render(); }
+function renderImpCard(){
+  const card = document.getElementById("impCard"); if(!card) return;
+  card.hidden = !impOn; if(!impOn) return;
+  const lab = ["1st best","2nd best"];
+  const rows = impList.map((x,k)=>{
+    const a=x.piv[0], b=x.piv[5], on = impSel===k;
+    return '<div onclick="window.__impPick('+k+')" style="cursor:pointer;margin:5px 0;padding:5px 7px;border:1px solid '+(on?'#7c3aed':'#d4d4d8')+';border-radius:6px;background:'+(on?'#f3e8ff':'transparent')+'">'
+      +'<b style="color:#6d28d9">'+lab[k]+'</b> · '+(x.dirUp?'↑':'↓')+' '+fmtDate(a.t)+' → '+fmtDate(b.t)+' · '+x.c.variant.split(" ")[0]+' · score '+x.score.toFixed(1)
+      +'<div style="font-size:11px;color:#52525b;margin-top:2px">'+x.ext+(x.why.length?' · '+x.why.join(' · '):'')+'</div></div>';
+  }).join("");
+  card.innerHTML = '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><b>Impulse ideas</b> <span style="font-size:11px;color:#71717a">'+impWinTxt+'</span>'
+    +'<span><a href="#" onclick="window.__impRun();return false" title="Search again for the window now on screen">↻</a> &nbsp; <a href="#" onclick="window.__impClose();return false" title="Close">✕</a></span></div>'
+    + (rows || '<div style="margin:6px 0;color:#71717a">'+(impNote||"Nothing found.")+'</div>')
+    + (impList.length && impNote ? '<div style="font-size:11px;color:#71717a">'+impNote+'</div>' : '')
+    + '<div style="font-size:11px;color:#71717a;margin-top:4px">Click a row to draw it, click again to remove. Skeleton only: the inside of each wave is not tested; thresholds marked "my threshold" are mine.</div>';
+}
+window.__impPick = function(k){ impSel = (impSel===k) ? -1 : k; renderImpCard(); render(); };
+window.__impRun = function(){ impRun(); };
+window.__impClose = function(){ impOn = false; impSel = -1; document.getElementById("btnImpulse").classList.remove("active"); renderImpCard(); render(); };
+document.getElementById("btnImpulse").addEventListener("click", ()=>{
+  impOn = !impOn; document.getElementById("btnImpulse").classList.toggle("active", impOn);
+  if(impOn) impRun(); else { impSel = -1; renderImpCard(); render(); }
+});
+function drawImpulseOverlay(){
+  if(!impOn || impSel<0 || !impList[impSel] || impTab!==activeTab) return;
+  const x = impList[impSel], g2 = el("g",{"clip-path":"url(#plotclip)","pointer-events":"none"});
+  const pts = x.piv.map(p=>[sx(p.t), sy(p.v)]);
+  g2.appendChild(el("polyline",{points:pts.map(q=>q[0]+","+q[1]).join(" "),fill:"none",stroke:"#7c3aed","stroke-width":4,"stroke-linejoin":"round",opacity:0.85}));
+  pts.forEach((q,i)=>{
+    const isHigh = (i%2===1) === x.dirUp;          // up impulse: odd pivots are highs
+    const cy = isHigh ? q[1]-17 : q[1]+17;
+    g2.appendChild(el("circle",{cx:q[0],cy:cy,r:11,fill:"#fff",stroke:"#7c3aed","stroke-width":2.5}));
+    const tx = el("text",{x:q[0],y:cy+5,"text-anchor":"middle","font-size":14,"font-weight":800,fill:"#6d28d9"}); tx.textContent = String(i); g2.appendChild(tx);
+  });
+  const lab = el("text",{x:pts[0][0]+14,y:pts[0][1]+(x.dirUp?34:-26),"font-size":12,"font-weight":700,fill:"#6d28d9",stroke:"var(--panel)","stroke-width":3,"paint-order":"stroke"});
+  lab.textContent = (impSel===0?"1st best":"2nd best")+" Impulse · "+x.c.variant.split(" ")[0]; g2.appendChild(lab);
+  svg.appendChild(g2);
+}
+
 function setCompactLevel(L){
   if(compactMode && compactLevel===L) compactMode = false; else { compactMode = true; compactLevel = L; }
   compactPick = null;
