@@ -225,6 +225,8 @@ body.embed{padding-left:8px; padding-right:8px;}
           <select id="rnA2" title="what to do with Aspect 2 periods when you press apply" style="font-size:12px"><option value="three">A2: three segments</option><option value="merge">A2: one monowave</option><option value="skip">A2: skip</option></select>
           <button type="button" id="btnRNUndo" class="toggle" style="cursor:pointer" title="Restore the red pivots as they were before the last apply RN">undo RN</button>
           <button type="button" id="btnRNApply" class="toggle" style="cursor:pointer" title="Remove the suggested dots from your red (validated) pivots">apply RN</button>
+          <button type="button" id="btnCompact" class="toggle" style="cursor:pointer" title="Define a compacted pattern: click the R-tag at its start pivot, then the R-tag at its end pivot. The tool tests it (Fig 3-36, Standard Series), gives its base :3 / :5 and its Complexity Level">⊞ compact</button>
+          <button type="button" id="btnCompactUndo" class="toggle" style="cursor:pointer" title="Remove the last compacted pattern you defined">↶ compact</button>
           <button type="button" id="btnM1View" class="toggle" style="cursor:pointer" title="Zoom on one monowave m1 with its m(-4)..m0 and m2..m4 neighbours (click an R-tag to choose it)">◎ m1 view</button>
           <label class="toggle" id="piWrap" title="Position Indicator Sequences (p.3-61..65): drop every label that has no legal neighbours, then run Pattern Isolation (circle the end of the first wave with only L5/L3, walk back three labels)"><input type="checkbox" id="togglePI"><span>PI + isolate</span></label>
           <label class="toggle" id="ruleMinWrap" title="Hide tags of monowaves smaller than this % of the visible price range"><span>min size</span><input type="range" id="ruleMin" min="0" max="15" step="0.5" value="0" style="width:80px"><span id="ruleMinVal">0%</span></label>
@@ -1372,7 +1374,7 @@ const NEELY3 = (function(){
     {id:"D", name:"Triangle",  base:"3", nature:"corrective", slots:[["F3"],["c3"],["c3"],["c3","sL3","L3"],["c3","sL3","L3"]], lastL:["L3"]},
     {id:"E", name:"Terminal",  base:"5", nature:"conclusive", slots:[["F3"],["c3"],["c3"],["c3","sL3","L3"],["L3"]]}
   ];
-  const unitSet = u => u.compact ? (u.base==="5" ? CLASS5 : CLASS3) : u.final;
+  const unitSet = u => u.compact ? (u.base==="5" ? CLASS5 : u.base==="3" ? CLASS3 : CLASS5.concat(CLASS3)) : u.final;
   function matchSeries(parts){
     const n = parts.length, res = [];
     SERIES.forEach(s=>{
@@ -1425,7 +1427,46 @@ const NEELY3 = (function(){
     return {byWave, groups};
   }
 
-  return {redCheck, clean, observe, analyse, analyseAll, ruleOf, condOf, catOf, listFor, neutralityFlag, RULE_TEXT, LISTS, ctx, refine, refinedText, RULE1, RULE2, RULE3, RULE4, RULE5, RULE6, RULE7, neutral, positionIndicators, isolate, SEQ, ALL_LABELS, SERIES, matchSeries, seriesReduce};
+
+  // ===========================================================================================
+  // Compacted patterns the user defines (start pivot .. end pivot). Complexity levels (Ch. 3 p. 3-68 / Ch. 7):
+  //   monowave = level 0 ; a pattern built from monowaves = level 1 ; from level-1 patterns = level 2 ; and so on (= 1 + highest component).
+  //   adjacent components may differ by at most ONE level (p. 3-68).  Base Structure: :3 when the pattern's price exceeds its own beginning (Fig. 3-36),
+  //   otherwise the base of the Standard Series that fits (A, E -> :5 ; B, C, D -> :3); the user can override it.
+  // ===========================================================================================
+  function compactInfo(p, PIw, comps){
+    const idx = t => { for(let i=0;i<p.length;i++) if(p[i].t===t) return i; return -1; };
+    const list = (comps||[]).map((c,k)=>({k, ta:c.ta, tb:c.tb, ia:idx(c.ta), ib:idx(c.tb), baseOv:c.base||null})).filter(c=>c.ia>=0 && c.ib>c.ia);
+    list.sort((x,y)=>(x.ib-x.ia)-(y.ib-y.ia) || x.ia-y.ia);
+    const done = [];
+    list.forEach(c=>{
+      const inner = done.filter(d=>d.ia>=c.ia && d.ib<=c.ib && !(d.ia===c.ia && d.ib===c.ib));
+      const maximal = inner.filter(d=>!inner.some(e=>e!==d && e.ia<=d.ia && e.ib>=d.ib && (e.ib-e.ia)>(d.ib-d.ia))).sort((x,y)=>x.ia-y.ia);
+      const parts = []; let i = c.ia;
+      while(i<c.ib){
+        const m = maximal.find(d=>d.ia===i);
+        if(m){ parts.push({a:m.ia, b:m.ib, final:[":"+(m.base||"?")], compact:true, base:m.base||null, level:m.level}); i = m.ib; }
+        else { const w = PIw ? PIw[i] : null; parts.push({a:i, b:i+1, final:w?w.final:[], compact:false, level:0, pending:!!(w&&w.pending)}); i++; }
+      }
+      const lv = parts.map(x=>x.level), level = 1 + Math.max.apply(null, lv), warn = [];
+      if(Math.max.apply(null, lv) - Math.min.apply(null, lv) > 1) warn.push("components differ by more than one Complexity Level (p. 3-68)");
+      let exceeded = false;
+      const up = p[c.ib].v > p[c.ia].v;
+      for(let k=c.ia+1;k<c.ib;k++) if(up ? p[k].v < p[c.ia].v : p[k].v > p[c.ia].v){ exceeded = true; break; }
+      const nP = parts.length;
+      const series = (nP===3 || nP===5) ? matchSeries(parts.filter(x=>!x.pending || true)) : [];
+      let baseAuto = null;
+      if(exceeded) baseAuto = "3";
+      else if(series.length){ const bs = Array.from(new Set(series.map(x=>x.base))); baseAuto = bs.length===1 ? bs[0] : null; }
+      const base = c.baseOv || baseAuto;
+      if(!series.length && !exceeded && !c.baseOv) warn.push(nP===3||nP===5 ? "no Standard Series fits these "+nP+" parts" : nP+" parts: not a 3 or 5 wave Standard pattern (Non-Standard / needs more compaction)");
+      const rec = {k:c.k, ta:c.ta, tb:c.tb, ia:c.ia, ib:c.ib, level, base, baseAuto, baseOv:c.baseOv, exceeded, series:series.map(x=>({id:x.id,name:x.name,base:x.base})), nParts:nP, warn};
+      done.push(rec);
+    });
+    return done;
+  }
+
+  return {compactInfo, redCheck, clean, observe, analyse, analyseAll, ruleOf, condOf, catOf, listFor, neutralityFlag, RULE_TEXT, LISTS, ctx, refine, refinedText, RULE1, RULE2, RULE3, RULE4, RULE5, RULE6, RULE7, neutral, positionIndicators, isolate, SEQ, ALL_LABELS, SERIES, matchSeries, seriesReduce};
 })();
 /*NEELY_CH3_END*/
 const NS = "http://www.w3.org/2000/svg";
@@ -1487,6 +1528,11 @@ let square2Tabs = {};  // {[tab]: true} show the second (non-directional) square
 let squareEnd = {};   // {[tab]: {t,v}} user-chosen top-right corner of the Neely square (default: highest point)
 let ndSquares = [];   // [{id,tab,t0,v0,t1,v1}] non-directional squares: start top-left, end on the right edge at the 50% line
 let squareTabs = {}; // {[tab]: true} tabs fitted to Neely's square: start (Neely start) bottom-left, highest point top-right
+let compStore = {}, weakStore = {}, compactMode = false, compactPick = null;
+try{ compStore = JSON.parse(localStorage.getItem("goldCompact_v1")||"{}")||{}; }catch(e){ compStore = {}; }
+try{ weakStore = JSON.parse(localStorage.getItem("goldWeak_v1")||"{}")||{}; }catch(e){ weakStore = {}; }
+const saveComp = ()=>{ try{ localStorage.setItem("goldCompact_v1", JSON.stringify(compStore)); }catch(e){} };
+const saveWeak = ()=>{ try{ localStorage.setItem("goldWeak_v1", JSON.stringify(weakStore)); }catch(e){} };
 let showPI = false, showRN = false, rnSuggest = [], showRulesFlag = false, showRuleLab = false, ruleMinPct = 0;
 let yOverride = {};  // {[tab]: [lo,hi]} fixed price range while the square fit is on (not saved)
 let ray45Tabs = {}; // {[tab]: true} tabs showing the 45-degree ray from the Neely start (26-Sep-2022, 1632.15)
@@ -2041,13 +2087,19 @@ function render(){
     const fitted = !!squareTabs[activeTab];
     let drawn = 0;
     const listRows = [];
+    if(compactMode) listRows.push('<div style="margin:2px 0 6px;font-size:11px;color:#b91c1c;font-weight:700">Compact mode: click the R-tag at the START pivot, then the R-tag at the END pivot. Click a compacted label to cycle :3 / :5 / automatic, shift-click to delete.</div>');
     let unitT = Infinity; for(let q=1;q<AN.p.length;q++){ const d=AN.p[q].t-AN.p[q-1].t; if(d>0 && d<unitT) unitT=d; } if(!isFinite(unitT)) unitT=1;
     const yspan = Math.abs(sy(yDomain[0])-sy(yDomain[1])) || 1;
     window.__AN = AN; window.__unitT = unitT;
     let PIw = null, ISO = null;
     if(showPI){ try{ PIw = NEELY3.positionIndicators(AN.p, unitT); ISO = NEELY3.isolate(PIw, AN.p); }catch(e){ PIw = null; ISO = null; } }
     let SR = null; if(ISO){ try{ SR = NEELY3.seriesReduce(ISO, AN.p); }catch(e){ SR = null; } }
-    window.__PI = PIw; window.__ISO = ISO; window.__SR = SR;
+    if(PIw){ const wk = weakStore[activeTab] || {};
+      PIw.forEach(w=>{ const pt = AN.p[w.i+1]; const wl = pt ? wk[pt.t] : null; w.weak = [];
+        if(wl && wl.length && !w.pending){ const strong = w.final.filter(l=>wl.indexOf(l)<0); const weakL = w.final.filter(l=>wl.indexOf(l)>=0);
+          if(strong.length && weakL.length){ w.finalAll = w.final.slice(); w.final = strong; w.weak = weakL; w.single = strong.length===1 ? strong[0] : null; } } }); }
+    let CI = []; if(PIw){ try{ CI = NEELY3.compactInfo(AN.p, PIw, compStore[activeTab] || []); }catch(e){ CI = []; } }
+    window.__PI = PIw; window.__ISO = ISO; window.__SR = SR; window.__CI = CI;
     AN.res.forEach(r=>{
       const pb = AN.p[r.b], pa = AN.p[r.a];
       r.rf = r.pending ? null : NEELY3.refine(AN.p, r.i, unitT, r);
@@ -2060,7 +2112,7 @@ function render(){
         { const pw = PIw ? PIw[r.i] : null;
           const sr = SR && SR.byWave[r.i] ? SR.byWave[r.i] : null;
           const jl = arr => arr.map(l=>(l==="c3" && pw && pw.canX) ? "c3\u02E3" : l).join("/");
-          const pit = pw ? (sr ? jl(sr.labels)+"\u25C6" : (pw.final.length>=8 ? "?" : jl(pw.final))) : "";
+          const pit = pw ? ((sr ? jl(sr.labels)+"\u25C6" : (pw.final.length>=8 ? "?" : jl(pw.final))) + (pw.weak && pw.weak.length ? " ("+pw.weak.join("/")+")" : "")) : "";
           lab.textContent = r.id + (pw ? " " + pit : (showRuleLab && rtxt ? " " + rtxt.replace(/ \([^)]*\)/g,"") : "")); }
         const ttl = document.createElementNS(NS,"title");
         ttl.textContent = r.id+" · "+NEELY3.RULE_TEXT[r.rule]+" · m2/m1 "+Math.round(r.r2*100)+"%"+(r.r0!==undefined?" · m0/m1 "+Math.round(r.r0*100)+"%":"")+" · mg0="+r.mg0+" mg2="+r.mg2+(r.cat?" · m3/m2 "+Math.round(r.r3*100)+"%":"")+"\nBase list: "+r.list+
@@ -2069,7 +2121,7 @@ function render(){
         if(SR && SR.byWave[r.i]){ const sr=SR.byWave[r.i]; ttl.textContent += "\nStructure Series (Fig 4-3): "+sr.from.join("/")+" -> "+sr.labels.join("/")+"  (series "+sr.series.join(", ")+")"; }
         if(PIw && PIw[r.i]){ const pw=PIw[r.i]; ttl.textContent += "\nPosition Indicators: "+pw.orig.join("/")+" -> "+(pw.final.length>=8?"(unrestricted)":pw.final.join("/"))+(pw.removed.length?"  (removed: "+pw.removed.join(", ")+")":""); }
         lab.appendChild(ttl);
-        lab.style.cursor="pointer"; lab.addEventListener("click", ev=>{ ev.stopPropagation(); openM1View(r.i); });
+        lab.style.cursor="pointer"; lab.addEventListener("click", ev=>{ ev.stopPropagation(); if(compactMode){ window.__pickCompact(pb.t); return; } openM1View(r.i); });
         g.appendChild(lab); drawn++;
       }
       if(fitted && pb.t>=xDomain[0] && pb.t<=xDomain[1]){
@@ -2079,6 +2131,22 @@ function render(){
         }
       }
     });
+    CI.forEach(ci=>{
+      const pb = AN.p[ci.ib]; if(!pb || pb.t<xDomain[0] || pb.t>xDomain[1]) return;
+      const x = sx(pb.t)+10, y = sy(pb.v), txt = ":"+(ci.base||"?");
+      const col = ci.level<=1 ? "#111827" : ci.level===2 ? "#15803d" : "#1d4ed8";
+      const grp = el("g",{}); grp.style.cursor = compactMode ? "pointer" : "default";
+      if(ci.level>=2) grp.appendChild(el("rect",{x:x-5,y:y-17,width:32,height:24,rx:4,fill:ci.level===2?"#dcfce7":"#dbeafe",stroke:ci.level===2?"#16a34a":"#2563eb","stroke-width":2}));
+      const tx = el("text",{x:x,y:y+2,"font-size":18,"font-weight":800,fill:col,stroke:ci.level>=2?"none":"var(--panel)","stroke-width":ci.level>=2?0:3,"paint-order":"stroke"}); tx.textContent = txt; grp.appendChild(tx);
+      const tt = document.createElementNS(NS,"title");
+      tt.textContent = "Compacted pattern  "+(AN.p[ci.ia].d||"")+" -> "+(AN.p[ci.ib].d||"")+"\nbase "+txt+(ci.baseOv?" (set by you)":(ci.baseAuto?" (automatic)":" (undecided)"))+"   Complexity Level "+ci.level
+        +"\n"+ci.nParts+" part(s)"+(ci.exceeded?" · price exceeded its own beginning: :3 (Fig 3-36)":"")+(ci.series.length?" · Series "+ci.series.map(s=>s.id+" "+s.name).join(" or "):"")+(ci.warn.length?"\n! "+ci.warn.join("\n! "):"")
+        +(compactMode?"\nclick: cycle base :3 / :5 / automatic · shift-click: delete":"");
+      grp.appendChild(tt);
+      grp.addEventListener("click", ev=>{ if(!compactMode) return; ev.stopPropagation(); window.__editCompact(ci.ta, ci.tb, ev.shiftKey); });
+      g.appendChild(grp);
+    });
+    if(compactPick!==null){ const pp = AN.p.find(q=>q.t===compactPick); if(pp && pp.t>=xDomain[0] && pp.t<=xDomain[1]) g.appendChild(el("circle",{cx:sx(pp.t),cy:sy(pp.v),r:11,fill:"none",stroke:"#dc2626","stroke-width":2.5,"stroke-dasharray":"4 2"})); }
     if(ISO){
       const desc = o => (o.start?(AN.p[o.start.pivot].d||'')+' ('+o.start.label+')':'start ?')+' → '+(AN.p[o.endPivot].d||'')+' ('+o.endLabel+')'
         + (o.series && o.series.length ? ' · Series '+o.series.map(s=>s.id+' '+s.name).join(' or ')+(o.needsNonStd?' (last label has no L: compact to :3, Non-Standard, fn 1)':'') : (o.parts && (o.parts.length===3||o.parts.length===5) ? ' · no Standard Series fits these '+o.parts.length+' waves' : (o.windows && o.windows.length ? ' · '+o.windows.length+' 3/5-wave window(s) fit a Series' : ''))) + (o.confirmed ? ' · compacted → :'+o.base+(o.exceeded?' (price went beyond its own beginning: :3, Fig 3-36)':'')+' · '+o.nUnits+' unit(s)'+(o.absorbs?' · absorbed the earlier compacted pattern (<3 waves between, Fig 3-35)':(o.linked?' · starts at a dotted point (Fig 3-34)':''))+(o.multi?' · '+o.multi+' wave(s) between still have several labels':'') : (o.check==='even' ? ' · even number of waves from the dotted point: check' : ' · no start found'));
@@ -2094,6 +2162,7 @@ function render(){
           if(o.confirmed) g.appendChild(el("circle",{cx:sx(ps.t),cy:sy(ps.v),r:4.2,fill:"#7c3aed",stroke:"none"}));
         }
       });
+      if(CI.length) listRows.push('<div style="margin:4px 0 6px;font-weight:700;color:#111827">Compacted patterns (yours): '+CI.length+'</div>'+CI.map(ci=>'<div style="margin:2px 0;color:'+(ci.level<=1?'#111827':ci.level===2?'#15803d':'#1d4ed8')+'">:'+(ci.base||'?')+' · Level '+ci.level+' · '+(AN.p[ci.ia].d||'')+' → '+(AN.p[ci.ib].d||'')+' · '+ci.nParts+' part(s)'+(ci.series.length?' · '+ci.series.map(s=>s.name).join('/'):'')+(ci.exceeded?' · exceeds its beginning (:3)':'')+(ci.baseOv?' · base set by you':'')+(ci.warn.length?' · ⚠ '+ci.warn.join('; '):'')+'</div>').join(''));
       const rows = ISO.slice(-6).reverse().map(o=>'<div style="margin:2px 0;color:#6d28d9">⭘ '+desc(o)+'</div>');
       listRows.push('<div style="margin:4px 0 6px;font-weight:700;color:#6d28d9">Isolated patterns (newest): '+ISO.length+' · compacted '+ISO.filter(o=>o.confirmed).length+'</div>'+(SR?'<div style="margin:0 0 6px;font-size:11px;color:#6d28d9">Series (Fig 4-3): '+SR.groups.filter(o=>o.parts.length===3||o.parts.length===5).length+' groups of 3/5 tested · '+SR.groups.filter(o=>o.series&&o.series.length).length+' fit a Series · '+Object.keys(SR.byWave).length+' wave(s) reduced (◆) · '+SR.groups.filter(o=>o.parts.length>5).length+' groups larger than 5 (not reduced) · '+SR.groups.filter(o=>o.parts.length<3||o.parts.length===4).length+' of 1, 2 or 4 parts (no Series)</div>':'<div style="font-size:11px;color:#b45309">Series matcher not loaded</div>')+rows.join(""));
     }
@@ -2893,6 +2962,34 @@ document.getElementById("btnRNUndo").addEventListener("click", ()=>{
   try{ localStorage.removeItem("goldRNUndo_"+activeTab); }catch(e){}
   saveState(); render();
 });
+window.__pickCompact = function(t){
+  if(compactPick===null){ compactPick = t; render(); return; }
+  let a = compactPick, b = t; compactPick = null;
+  if(a===b){ render(); return; }
+  if(a>b){ const x=a; a=b; b=x; }
+  const arr = compStore[activeTab] || []; if(!arr.some(c=>c.ta===a && c.tb===b)) arr.push({ta:a, tb:b});
+  compStore[activeTab] = arr; saveComp(); render();
+};
+window.__editCompact = function(ta, tb, del){
+  const arr = compStore[activeTab] || []; const k = arr.findIndex(c=>c.ta===ta && c.tb===tb); if(k<0) return;
+  if(del){ arr.splice(k,1); } else { const c = arr[k]; c.base = !c.base ? "3" : (c.base==="3" ? "5" : null); if(!c.base) delete c.base; }
+  compStore[activeTab] = arr; saveComp(); render();
+};
+window.__toggleWeak = function(i, lab){
+  const AN = window.__AN; if(!AN || !AN.p[i+1]) return; const t = AN.p[i+1].t;
+  const wk = weakStore[activeTab] || (weakStore[activeTab] = {}); const l = wk[t] || [];
+  const k = l.indexOf(lab); if(k>=0) l.splice(k,1); else l.push(lab);
+  if(l.length) wk[t] = l; else delete wk[t];
+  saveWeak(); render();
+  try{ if(typeof window.openM1View==="function" && document.getElementById("m1Head") && document.getElementById("m1Head").offsetParent!==null) window.openM1View(i); }catch(e){}
+};
+document.getElementById("btnCompact").addEventListener("click", ()=>{
+  compactMode = !compactMode; compactPick = null;
+  const b = document.getElementById("btnCompact"); b.style.background = compactMode ? "#fee2e2" : ""; b.style.borderColor = compactMode ? "#dc2626" : "";
+  if(compactMode){ const c=document.getElementById("toggleRules"); if(!c.checked){ c.checked=true; showRulesFlag=true; } const p=document.getElementById("togglePI"); if(!p.checked){ p.checked=true; showPI=true; } }
+  render();
+});
+document.getElementById("btnCompactUndo").addEventListener("click", ()=>{ const arr = compStore[activeTab] || []; arr.pop(); compStore[activeTab] = arr; compactPick = null; saveComp(); render(); });
 document.getElementById("togglePI").addEventListener("change", e=>{ showPI = e.target.checked; if(showPI){ const c=document.getElementById("toggleRules"); if(!c.checked){ c.checked=true; showRulesFlag=true; } } render(); });
 document.getElementById("toggleRN").addEventListener("change", e=>{ showRN = e.target.checked; render(); });
 document.getElementById("btnRNApply").addEventListener("click", ()=>{
@@ -3680,7 +3777,7 @@ function drawM1View(){
   s += '</svg>';
   document.getElementById("m1Svg").innerHTML = s;
   const rt = NEELY3.refinedText(rf); const pw = window.__PI ? window.__PI[an.i] : null;
-  document.getElementById("m1Head").innerHTML = (pw?'<div style="color:#6d28d9"><b>Position Indicators:</b> '+pw.orig.join('/')+' → <b>'+(pw.final.length>=8?'(unrestricted)':pw.final.join('/'))+'</b>'+(pw.removed.length?' · removed: '+pw.removed.join(', '):'')+'</div>':'')+(pw?'<div style="color:#6d28d9;font-size:11px"><b>PI trace (which listed sequence keeps each label):</b> '+pw.final.map(l=>l+' ← '+(pw.sup&&pw.sup[l]?pw.sup[l]:'?')).join(' · ')+(pw.canX?' · c3 may take an x (p. 3-62)':'')+'<br>lists around m1: '+[-2,-1,0,1,2].map(d=>{const q=window.__PI[an.i+d]; return q?((d===0?'<b>m1</b>':(d<0?'m'+(d===-1?'0':'(-1)'):'m'+(d===1?'2':'3')))+' '+(q.pending?'…':q.final.join('/'))):'';}).filter(Boolean).join(' · ')+'</div>':'')+(window.__SR&&window.__SR.byWave[an.i]?'<div style="color:#6d28d9"><b>Structure Series (Fig 4-3):</b> '+window.__SR.byWave[an.i].from.join('/')+' → <b>'+window.__SR.byWave[an.i].labels.join('/')+'</b> (series '+window.__SR.byWave[an.i].series.join(', ')+')</div>':'')+'<b>'+an.id+'</b> · '+NEELY3.RULE_TEXT[an.rule]+' · m2/m1 '+Math.round(an.r2*100)+'%'+(an.r0!==undefined?' · m0/m1 '+Math.round(an.r0*100)+'%':'')+
+  document.getElementById("m1Head").innerHTML = (pw?'<div style="color:#6d28d9"><b>Position Indicators:</b> '+pw.orig.join('/')+' → <b>'+(pw.final.length>=8?'(unrestricted)':pw.final.join('/'))+'</b>'+(pw.removed.length?' · removed: '+pw.removed.join(', '):'')+'</div>':'')+(pw?'<div style="color:#6d28d9;font-size:11px"><b>PI trace (which listed sequence keeps each label):</b> '+(pw.finalAll||pw.final).map(l=>'<span title="click: mark as a weak option / strong again" style="cursor:pointer;'+(pw.weak&&pw.weak.indexOf(l)>=0?'opacity:.5;text-decoration:line-through;':'')+'" onclick="window.__toggleWeak('+an.i+',\''+l+'\')">'+l+'</span> ← '+(pw.sup&&pw.sup[l]?pw.sup[l]:'?')).join(' · ')+(pw.canX?' · c3 may take an x (p. 3-62)':'')+'<br>lists around m1: '+[-2,-1,0,1,2].map(d=>{const q=window.__PI[an.i+d]; return q?((d===0?'<b>m1</b>':(d<0?'m'+(d===-1?'0':'(-1)'):'m'+(d===1?'2':'3')))+' '+(q.pending?'…':q.final.join('/'))):'';}).filter(Boolean).join(' · ')+'</div>':'')+(window.__SR&&window.__SR.byWave[an.i]?'<div style="color:#6d28d9"><b>Structure Series (Fig 4-3):</b> '+window.__SR.byWave[an.i].from.join('/')+' → <b>'+window.__SR.byWave[an.i].labels.join('/')+'</b> (series '+window.__SR.byWave[an.i].series.join(', ')+')</div>':'')+'<b>'+an.id+'</b> · '+NEELY3.RULE_TEXT[an.rule]+' · m2/m1 '+Math.round(an.r2*100)+'%'+(an.r0!==undefined?' · m0/m1 '+Math.round(an.r0*100)+'%':'')+
     ' · mg0='+an.mg0+' mg2='+an.mg2+'<br>Base list: '+an.list+(rf.covered?'<br><b>Pre-Constructive:</b> '+(rt||'(no paragraph fired)')+(rf.notes.length?'<br><span style="color:var(--ink-soft)">'+rf.notes.join('<br>')+'</span>':'')+(rf.pending.length?'<br><span style="color:var(--ink-soft)">Still open (waves not formed yet): '+rf.pending.length+'</span>':''):'<br><span style="color:var(--ink-soft)">No Pre-Constructive paragraph fired / none for this Rule.</span>');
   const rows = wk.map(k=>{ const w=X.W[k], a=p[w.s], b=p[w.e], len=Math.abs(b.v-a.v), dt=days(Math.max(b.t-a.t,0));
     return '<tr style="'+(k===1?'font-weight:700;background:#92400e18':'')+'"><td style="color:'+col(k)+'"><b>m'+(k<0?'('+k+')':k)+'</b>'+(w.e-w.s>1?' ('+(w.e-w.s)+' mw)':'')+'</td><td>'+(a.d||'')+'</td><td>'+fmtPrice(a.v)+'</td><td>'+(b.d||'')+'</td><td>'+fmtPrice(b.v)+'</td><td>'+(b.v>a.v?'↑':'↓')+'</td><td>'+fmtPrice(len)+'</td><td>'+Math.round(len/L1*100)+'%</td><td>'+dt.toFixed(1)+'</td><td>'+Math.round(dt/days(p[an.b].t-p[an.a].t)*100)+'%</td></tr>'; });
