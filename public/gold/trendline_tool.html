@@ -2098,7 +2098,7 @@ function render(){
     const fitted = !!squareTabs[activeTab];
     let drawn = 0;
     const listRows = [];
-    if(compactMode) listRows.push('<div style="margin:2px 0 6px;font-size:11px;color:#b91c1c;font-weight:700">Compact Level-'+compactLevel+' mode: click the START pivot, then the END pivot (dot, ring or R-tag). Click a compacted label to cycle :3 / :5 / automatic, shift-click to delete.</div>');
+    if(compactMode) listRows.push('<div style="margin:2px 0 6px;font-size:11px;color:#b91c1c;font-weight:700">Compact Level-'+compactLevel+' mode: '+(compactPick!==null ? 'START set ('+((AN.p.find(q=>q.t===compactPick)||{}).d||'')+'). Now RIGHT-click the END pivot to choose :3 / :5 / ? (or left-click it). If the end is off the screen, zoom out first.' : 'left-click the START pivot, then right-click the END pivot to choose :3 / :5 / ? (or left-click it).')+' Click a compacted label to cycle :3 / :5 / automatic, shift-click to delete.</div>');
     let unitT = Infinity; for(let q=1;q<AN.p.length;q++){ const d=AN.p[q].t-AN.p[q-1].t; if(d>0 && d<unitT) unitT=d; } if(!isFinite(unitT)) unitT=1;
     const yspan = Math.abs(sy(yDomain[0])-sy(yDomain[1])) || 1;
     window.__AN = AN; window.__unitT = unitT;
@@ -3648,7 +3648,7 @@ svg.addEventListener("contextmenu", evt=>{
       if(cur) add("✕","Delete this compaction",()=>{ arr.splice(arr.indexOf(cur),1); saveComp(); render(); },"del");
     } else {
       add("◎","Start a Level-"+compactLevel+" compaction at this pivot (then right-click the end pivot for :3 / :5 / ?)",()=>window.__pickCompact(cpt.t));
-      [":3",":5","?"].forEach(t=>add(t,"Pick the start pivot first (left-click it, or ◎), then right-click the end pivot",()=>{},"",true));
+      [":3",":5","?"].forEach(t=>add(t,compactPick===cpt.t ? "This is the START pivot you picked: right-click the END pivot instead (zoom out if it is off the screen)" : "Pick the start pivot first (left-click it, or ◎), then right-click the end pivot",()=>{},"",true));
     }
     add("⎋","Cancel",()=>{ compactPick = null; render(); });
     document.body.appendChild(m);
