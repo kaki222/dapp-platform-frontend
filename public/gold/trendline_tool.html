@@ -1204,7 +1204,9 @@ const NEELY3 = (function(){
    {id:"5-1", t:["?","5","F3","5"]},
    {id:"5-2", t:["?","5","F3","s5","F3"],  chk:L=>L[3]>L[1] && L[2]<L[1] && L[4]<L[3]},
    {id:"5-2b",t:["?","5","F3","s5","x"],   chk:L=>L[4]<L[3] && L[2]<L[1] && L[2]<L[3]},
-   {id:"5-3", t:["F3","5","F3","L5"],      chk:L=>L[3]>L[1]},
+   {id:"5-3", t:["F3","5","F3","L5"],      chk:(L,V)=>{ if(!(L[3]>L[1])) return false;                                       // L5 must be longer than 5
+      const a=[Math.min(V[0][0],V[0][1]),Math.max(V[0][0],V[0][1])], b=[Math.min(V[2][0],V[2][1]),Math.max(V[2][0],V[2][1])];   // the two F3s cannot share similar price territory (p. 3-64; my tolerance: overlap < 50% of the smaller F3)
+      const ov=Math.min(a[1],b[1])-Math.max(a[0],b[0]), small=Math.min(a[1]-a[0], b[1]-b[0]); return !(ov>0 && ov>=0.5*small); }},
    {id:"5-4", t:["F3","5","x","F3"],       chk:L=>L[2]<L[1] && L[0]<L[1]},
    {id:"5-5", t:["F3","5","x","5"],        chk:L=>L[2]<L[1] && L[0]<L[1] && L[3]>L[2]},
    {id:"5-6", t:["c3","5","x","F3"],        chk:L=>L[2]>=1.618*L[1] || L[2]<0.618*L[1]},
@@ -1246,10 +1248,10 @@ const NEELY3 = (function(){
     for(let i=0;i<n;i++){
       const an = analyse(p, i);
       const len = Math.abs(p[i+1].v-p[i].v);
-      if(an.pending){ waves.push({i, len, pending:true, cand:new Set(ALL_LABELS), orig:ALL_LABELS.slice(), id:"…", removed:[]}); continue; }
+      if(an.pending){ waves.push({i, len, v0:p[i].v, v1:p[i+1].v, pending:true, cand:new Set(ALL_LABELS), orig:ALL_LABELS.slice(), id:"…", removed:[]}); continue; }
       const rf = refine(p, i, unit, an);
       const c = candLabels(rf, an.list);
-      waves.push({i, len, pending:false, id:an.id, rule:an.rule, cond:an.cond, cand:new Set(c), orig:c.slice(), removed:[], rf});
+      waves.push({i, len, v0:p[i].v, v1:p[i+1].v, pending:false, id:an.id, rule:an.rule, cond:an.cond, cand:new Set(c), orig:c.slice(), removed:[], rf});
     }
     let lastViaX = false;
     const supported = (w, lab) => {
@@ -1260,16 +1262,16 @@ const NEELY3 = (function(){
         for(let j=0;j<T.length;j++){
           const tj = T[j];
           if(!(tj===lab || (tj==="x" && lab==="x:c3"))) { if(!(tj==="x" && lab==="c3")) continue; }
-          let ok = true; const L = [];
+          let ok = true; const L = [], V = [];
           for(let k=0;k<T.length && ok;k++){
             const idx = i+(k-j);
-            if(idx<0 || idx>=n){ L.push(undefined); continue; }                // before the chart / not formed yet: no constraint
+            if(idx<0 || idx>=n){ L.push(undefined); V.push(undefined); continue; }                // before the chart / not formed yet: no constraint
             const wk = waves[idx];
             if(k!==j && !tokMatch(T[k], wk.cand)) ok = false;
-            L.push(wk.len);
+            L.push(wk.len); V.push([wk.v0, wk.v1]);
           }
           if(!ok) continue;
-          if(sq.chk && L.every(v=>v!==undefined)){ try{ if(!sq.chk(L)) continue; }catch(e){} }
+          if(sq.chk && L.every(v=>v!==undefined)){ try{ if(!sq.chk(L, V)) continue; }catch(e){} }
           lastViaX = (tj==="x" && lab==="c3");
           return sq.id;
         }
