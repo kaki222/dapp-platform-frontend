@@ -207,7 +207,7 @@ body.embed{padding-left:8px; padding-right:8px;}
             <button id="btnSquare" title="Directional square (Neely Rule of Proportion): fits the view so the move from the Neely start (26-Sep-2022) to the highest point fills a square, start bottom-left and top-right corner at the high. Draws the square, the 25% termination zones from the book and a +/-10% wedge around the 45-degree diagonal. Click again to go back to the normal view">▢ Fit 1</button>
             <button id="btnSquare2" title="Second square (Neely Fig 3-10, non-directional action): an 8-inch square placed to the right of the directional square, its top-left corner on the directional square's top-right corner (the high). The dashed horizontal line is the vertical half-way point where the non-directional action should end at the right edge">▭ 2nd</button>
             <button id="btnFit2" title="Fit the view to the second square (same 8-inch scale, scrolled so the second square fills the chart). Click again to return to the directional square">▢▢ Fit 2</button>
-            <button id="btnSqEnd" title="Set the top-right corner of the Neely square: click the pivot it should be bound to (default: the highest point of the tab). Click the same corner button again with no pivot to go back to the highest point">⌖ Corner</button>
+            <button id="btnSqEnd" title="Pick the window corners for the square (Fit 1) and the 45° ray: first click corner 1 = bottom-left (the Neely start for this study, e.g. 2-Oct-2023), then corner 2 = top-right (later and higher). Click again to go back to the defaults: Neely start 26-Sep-2022 and the highest point">⌖ Corners</button>
             <button id="btnOrigin" title="Real-terms tabs only: switch where the square and the 45° ray begin — the ~500 real low of 2001 (default) or the ~322 real low of Dec-1969">⟲ Origin 2001</button>
             <button id="btnNdSq" title="Non-directional square (Neely Fig 3-11): click the start (top-left corner) and then the end pivot. The right edge sits at the end time, the square's vertical half-way line is drawn at the end price, so the bottom is twice as far below the start">▭ ½</button>
             <button id="btnNeelyStart" title="Neely start 26-Sep-2022 (1632.15) to the Jan'26 ATH, drawn on this tab">⚑ Neely</button>
@@ -296,7 +296,7 @@ btnFit2.addEventListener("click", ()=>{
   delete yOverride[activeTab]; saveState(); refreshSquareBtn(); render();
 });
 btnSqEnd.addEventListener("click", ()=>{
-  if(mode==="sqend"){ delete squareEnd[activeTab]; delete yOverride[activeTab]; mode="idle"; saveState(); updateToolState(); render(); return; }
+  if(mode==="sqend"){ delete squareEnd[activeTab]; delete squareStart[activeTab]; delete yOverride[activeTab]; pendingPoint=null; mode="idle"; saveState(); updateToolState(); render(); return; }
   mode="sqend"; pendingPoint=null; updateToolState(); render();
 });
 btnNdSq.addEventListener("click", ()=>{ mode = mode==="ndsq" ? "idle" : "ndsq"; pendingPoint=null; updateToolState(); render(); });
@@ -311,6 +311,7 @@ function isRealTab(tb){ return tb==="yearlyreal" || tb==="twoyr"; }
 // origin of the Rule-of-Proportion square and the 45-degree ray: the Sep-2022 Neely start on the nominal tabs,
 // the lowest real-terms point of the 1968-2026 series (Dec-1969) on the real tabs
 function neelyOrigin(){
+  if(squareStart[activeTab]) return {t:squareStart[activeTab].t, v:squareStart[activeTab].v};   // corner 1 picked by the user
   if(isRealTab(activeTab)){
     const raw = rawSeries(); let bi=-1;
     const lo = realOrigin==="2001" ? toTime("1995-01-01") : -Infinity, hi = realOrigin==="2001" ? toTime("2006-01-01") : Infinity;
@@ -1527,6 +1528,7 @@ const panBounds = [Math.min(fullXDomain[0]-PAN_PAD, yT[0]-5*365*86400000), fullX
 let xDomain = [fullXDomain[0], fullXDomain[1] + 330*86400000]; // weekly opens with ~11 months of room to the right for forecasts
 let yDomain = [0,1]; // recomputed each draw from visible window
 let square2Tabs = {};  // {[tab]: true} show the second (non-directional) square beside the directional one
+let squareStart = {}; // {[tab]: {t,v}} user-chosen bottom-left corner (corner 1) of the Neely square and 45° ray (default: the Neely start)
 let squareEnd = {};   // {[tab]: {t,v}} user-chosen top-right corner of the Neely square (default: highest point)
 let ndSquares = [];   // [{id,tab,t0,v0,t1,v1}] non-directional squares: start top-left, end on the right edge at the 50% line
 let squareTabs = {}; // {[tab]: true} tabs fitted to Neely's square: start (Neely start) bottom-left, highest point top-right
@@ -1692,6 +1694,7 @@ function loadState(){
       if(parsed.ray45Tabs && typeof parsed.ray45Tabs==="object") ray45Tabs=parsed.ray45Tabs;
       if(parsed.squareTabs && typeof parsed.squareTabs==="object") squareTabs=parsed.squareTabs;
       if(parsed.squareEnd && typeof parsed.squareEnd==="object") squareEnd=parsed.squareEnd;
+      if(parsed.squareStart && typeof parsed.squareStart==="object") squareStart=parsed.squareStart;
       if(parsed.square2Tabs && typeof parsed.square2Tabs==="object") square2Tabs=parsed.square2Tabs;
       if(Array.isArray(parsed.ndSquares)) ndSquares=parsed.ndSquares;
       // migration: the Sep'22 / Dec'24 -> Jan'26 ATH presets and the 29-Jan W-flat marks belong to the
@@ -1712,7 +1715,7 @@ function loadState(){
   }catch(e){}
 }
 function saveState(){
-  try{ localStorage.setItem("goldTrendlines_v3", JSON.stringify({lines, highlights, cyanHighlights, boxes, pauseBoxes, levels, pivotMarks, rejectedMono, forecasts, compactMarks, strips, logTabs, ray45Tabs, squareTabs, square2Tabs, squareEnd, ndSquares, idSeq, hotSeq})); }catch(e){}
+  try{ localStorage.setItem("goldTrendlines_v3", JSON.stringify({lines, highlights, cyanHighlights, boxes, pauseBoxes, levels, pivotMarks, rejectedMono, forecasts, compactMarks, strips, logTabs, ray45Tabs, squareTabs, square2Tabs, squareEnd, squareStart, ndSquares, idSeq, hotSeq})); }catch(e){}
 }
 loadState();
 
@@ -2714,7 +2717,7 @@ function updateToolState(){
   else if(mode==="level") hintText.innerHTML = "<b>Click</b> anywhere to drop a horizontal watch level at that price — fine-tune the exact value in the panel, and edit its label.";
   else if(mode==="pivot") hintText.innerHTML = "<b>Click a pivot dot</b> to mark it yellow — use this to settle on a starting point. Label it in the panel.";
   else if(mode==="c3"||mode==="c5"||mode==="cx") hintText.innerHTML = "<b>Click a pivot</b> to tag it <b>"+(mode==="c3"?":3":(mode==="c5"?":5":":X"))+"</b> ("+(mode==="cx"?"an X-wave connector":"completed, compacted "+(mode==="c3"?"corrective":"motive")+" pattern")+"). Click the same pivot again to remove it; click the button again to stop.";
-  else if(mode==="sqend") hintText.innerHTML = "<b>Click the pivot</b> that should be the top-right corner of the Neely square (click ⌖ again to return to the highest point).";
+  else if(mode==="sqend") hintText.innerHTML = pendingPoint ? "<b>Corner 2:</b> click the pivot for the top-right corner (later and higher). Click ⌖ again to go back to the Neely start and the highest point." : "<b>Corner 1:</b> click the pivot for the bottom-left corner of the window (the Neely start for this study), then corner 2 top-right. Click ⌖ again to go back to the defaults.";
   else if(mode==="ndsq") hintText.innerHTML = pendingPoint? "<b>Click the end pivot</b>: the square's right edge goes through it and its half-way line is drawn at its price." : "<b>Click the start pivot</b> (top-left corner of the non-directional square).";
   else if(mode==="forecast") hintText.innerHTML = "<b>Click anywhere</b> on the chart to drop grey forecast pivots in sequence — the path starts at the last validated (red) pivot. Click the button again to stop; Undo or Clear to remove.";
   else if(mode==="reject") hintText.innerHTML = "<b>Click a monowave dot</b> to flag it invalid (turns red) — click again to restore it. Walk through them left to right and validate the raw reduction by eye.";
@@ -3188,7 +3191,12 @@ svg.addEventListener("click", (evt)=>{
   if(!snap) return;
 
   if(mode==="sqend"){
-    squareEnd[activeTab] = {t:snap.t, v:snap.v}; if(!squareTabs[activeTab]) squareTabs[activeTab] = 1; delete yOverride[activeTab];
+    if(!pendingPoint){ pendingPoint = snap; updateToolState(); render(); return; }   // corner 1 (bottom-left)
+    let a = pendingPoint, b = snap;
+    if(b.t<a.t){ const x=a; a=b; b=x; }
+    if(b.t===a.t || b.v<=a.v){ pendingPoint = null; updateToolState(); render(); return; }   // the square needs corner 2 later and higher
+    squareStart[activeTab] = {t:a.t, v:a.v}; squareEnd[activeTab] = {t:b.t, v:b.v};
+    if(!squareTabs[activeTab]) squareTabs[activeTab] = 1; delete yOverride[activeTab]; pendingPoint = null;
     mode = "idle"; saveState(); refreshSquareBtn(); updateToolState(); render(); return;
   }
   if(mode==="ndsq"){
