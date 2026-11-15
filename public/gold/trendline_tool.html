@@ -3633,7 +3633,9 @@ svg.addEventListener("contextmenu", evt=>{
   }
   if(cpt){
     const arr = compStore[activeTab] || (compStore[activeTab] = []);
-    const ex = arr.filter(c=>c.tb===cpt.t); const cur = ex.find(c=>(c.lvl||0)===compactLevel) || ex[0] || null;
+    // the compaction that ends on this pivot, else one that starts on it (prefer the armed Level)
+    const exE = arr.filter(c=>c.tb===cpt.t), exS = arr.filter(c=>c.ta===cpt.t), ex = exE.concat(exS);
+    const cur = exE.find(c=>(c.lvl||0)===compactLevel) || exS.find(c=>(c.lvl||0)===compactLevel) || ex[0] || null;
     const setBase = bs => {
       if(cur){ if(bs) cur.base = bs; else delete cur.base; if(!cur.lvl) cur.lvl = compactLevel; }
       else if(compactPick!==null && compactPick!==cpt.t){ const o = {ta:Math.min(compactPick,cpt.t), tb:Math.max(compactPick,cpt.t), lvl:compactLevel}; if(bs) o.base = bs; arr.push(o); compactPick = null; }
@@ -3645,7 +3647,8 @@ svg.addEventListener("contextmenu", evt=>{
       add("?","Automatic / undecided (from the Standard Series and Fig 3-36)",()=>setBase(null));
       if(cur) add("✕","Delete this compaction",()=>{ arr.splice(arr.indexOf(cur),1); saveComp(); render(); },"del");
     } else {
-      add("◎","Start a Level-"+compactLevel+" compaction at this pivot",()=>window.__pickCompact(cpt.t));
+      add("◎","Start a Level-"+compactLevel+" compaction at this pivot (then right-click the end pivot for :3 / :5 / ?)",()=>window.__pickCompact(cpt.t));
+      [":3",":5","?"].forEach(t=>add(t,"Pick the start pivot first (left-click it, or ◎), then right-click the end pivot",()=>{},"",true));
     }
     add("⎋","Cancel",()=>{ compactPick = null; render(); });
     document.body.appendChild(m);
