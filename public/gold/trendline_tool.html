@@ -3626,6 +3626,34 @@ svg.addEventListener("contextmenu", evt=>{
     b.addEventListener("click", ()=>{ closeCtx(); fn(); });
     m.appendChild(b);
   }
+  // compact tools (L1/L2/L3) armed: right-click a pivot -> :3 / :5 / ? / delete for the compaction that ends there
+  let cpt = null;
+  if(compactMode && window.__AN && window.__AN.p){
+    let bd = 18; window.__AN.p.forEach(q=>{ if(q.t<xDomain[0] || q.t>xDomain[1]) return; const d=Math.hypot(sx(q.t)-pt.x, sy(q.v)-pt.y); if(d<bd){ bd=d; cpt=q; } });
+  }
+  if(cpt){
+    const arr = compStore[activeTab] || (compStore[activeTab] = []);
+    const ex = arr.filter(c=>c.tb===cpt.t); const cur = ex.find(c=>(c.lvl||0)===compactLevel) || ex[0] || null;
+    const setBase = bs => {
+      if(cur){ if(bs) cur.base = bs; else delete cur.base; if(!cur.lvl) cur.lvl = compactLevel; }
+      else if(compactPick!==null && compactPick!==cpt.t){ const o = {ta:Math.min(compactPick,cpt.t), tb:Math.max(compactPick,cpt.t), lvl:compactLevel}; if(bs) o.base = bs; arr.push(o); compactPick = null; }
+      saveComp(); render();
+    };
+    if(cur || (compactPick!==null && compactPick!==cpt.t)){
+      add(":3","Base :3 for this Level-"+(cur?cur.lvl||compactLevel:compactLevel)+" compaction",()=>setBase("3"));
+      add(":5","Base :5 for this Level-"+(cur?cur.lvl||compactLevel:compactLevel)+" compaction",()=>setBase("5"));
+      add("?","Automatic / undecided (from the Standard Series and Fig 3-36)",()=>setBase(null));
+      if(cur) add("✕","Delete this compaction",()=>{ arr.splice(arr.indexOf(cur),1); saveComp(); render(); },"del");
+    } else {
+      add("◎","Start a Level-"+compactLevel+" compaction at this pivot",()=>window.__pickCompact(cpt.t));
+    }
+    add("⎋","Cancel",()=>{ compactPick = null; render(); });
+    document.body.appendChild(m);
+    const vw0 = window.innerWidth, vh0 = window.innerHeight, r0 = m.getBoundingClientRect();
+    m.style.left = Math.max(4, Math.min(evt.clientX+6, vw0 - r0.width - 4)) + "px";
+    m.style.top  = Math.max(4, Math.min(evt.clientY+6, vh0 - r0.height - 4)) + "px";
+    ctxEl = m; return;
+  }
   if(hit){
     add("✕","Delete",()=>deleteHit(hit),"del");
     if(hit.kind==="tag" && tagPartner(hit.obj)) add("⇅","Swap order of the level 1 / level 2 tags on this pivot",()=>{
