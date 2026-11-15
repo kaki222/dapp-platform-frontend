@@ -1471,6 +1471,21 @@ const NEELY3 = (function(){
       const rec = {k:c.k, ta:c.ta, tb:c.tb, ia:c.ia, ib:c.ib, level, levelAuto, levelSet:c.lvl||0, base, baseAuto, baseOv:c.baseOv, exceeded, series:series.map(x=>({id:x.id,name:x.name,base:x.base})), nParts:nP, warn};
       done.push(rec);
     });
+    // Rule of Similarity & Balance (p. 4-4): two adjacent waves are "similar" if the smaller is at least 1/3 of the larger in price OR in time
+    const span = r => { let lo=Infinity, hi=-Infinity; for(let k=r.ia;k<=r.ib;k++){ if(p[k].v<lo) lo=p[k].v; if(p[k].v>hi) hi=p[k].v; } return {t:p[r.ib].t-p[r.ia].t, pr:hi-lo}; };
+    done.forEach(r=>{
+      const me = span(r); r.sim = [];
+      done.forEach(o=>{
+        if(o===r || !(o.ib===r.ia || o.ia===r.ib)) return;
+        const ot = span(o), tR = Math.min(me.t,ot.t)/Math.max(me.t,ot.t), pR = Math.min(me.pr,ot.pr)/Math.max(me.pr,ot.pr);
+        r.sim.push({ta:o.ta, tb:o.tb, base:o.base, level:o.level, side:o.ib===r.ia?"before":"after", tRatio:tR, pRatio:pR, similar: tR>=1/3 || pR>=1/3});
+      });
+      // a forced :5 on a group with no Standard Series behind it is allowed only when it is similar to a neighbouring compaction
+      if(r.baseOv==="5" && !r.series.some(x=>x.base==="5") && r.sim.length && !r.sim.some(x=>x.similar)){
+        r.warn.push(":5 refused: not similar to the neighbouring compaction in price or time (smaller < 1/3 of larger, p. 4-4)");
+        r.refused = true; r.base = r.baseAuto;
+      }
+    });
     return done;
   }
 
@@ -2153,7 +2168,7 @@ function render(){
       const tx = el("text",{x:x,y:y+2,"font-size":18,"font-weight":800,fill:col,stroke:ci.level>=2?"none":"var(--panel)","stroke-width":ci.level>=2?0:3,"paint-order":"stroke"}); tx.textContent = txt; grp.appendChild(tx);
       const tt = document.createElementNS(NS,"title");
       tt.textContent = "Compacted pattern  "+(AN.p[ci.ia].d||"")+" -> "+(AN.p[ci.ib].d||"")+"\nbase "+txt+(ci.baseOv?" (set by you)":(ci.baseAuto?" (automatic)":" (undecided)"))+"   Complexity Level "+ci.level
-        +"\n"+ci.nParts+" part(s)"+(ci.exceeded?" · price exceeded its own beginning: :3 (Fig 3-36)":"")+(ci.series.length?" · Series "+ci.series.map(s=>s.id+" "+s.name).join(" or "):"")+(ci.warn.length?"\n! "+ci.warn.join("\n! "):"")
+        +"\n"+ci.nParts+" part(s)"+(ci.exceeded?" · price exceeded its own beginning: :3 (Fig 3-36)":"")+(ci.series.length?" · Series "+ci.series.map(s=>s.id+" "+s.name).join(" or "):"")+(ci.sim&&ci.sim.length?"\nSimilarity & Balance (p. 4-4): "+ci.sim.map(s=>"vs :"+(s.base||"?")+" L"+s.level+" "+s.side+" — time "+Math.round(s.tRatio*100)+"%, price "+Math.round(s.pRatio*100)+"% ("+(s.similar?"similar: one is >= 33%":"NOT similar")+")").join("; "):"")+(ci.warn.length?"\n! "+ci.warn.join("\n! "):"")
         +(compactMode?"\nclick: cycle base :3 / :5 / automatic · shift-click: delete":"");
       grp.appendChild(tt);
       grp.addEventListener("click", ev=>{ if(!compactMode) return; ev.stopPropagation(); window.__editCompact(ci.ta, ci.tb, ev.shiftKey); });
