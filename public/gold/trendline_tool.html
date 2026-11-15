@@ -358,7 +358,7 @@ btnOrigin.addEventListener("click", ()=>{
   btnOrigin.textContent = "⟲ Origin " + realOrigin;
   delete yOverride[activeTab]; render();
 });
-btnRay45.addEventListener("click", ()=>{ ray45Tabs[activeTab] = !ray45Tabs[activeTab]; saveState(); refreshRayBtn(); render(); });
+btnRay45.addEventListener("click", ()=>{ ray45Tabs[activeTab] = !ray45Tabs[activeTab]; if(!ray45Tabs[activeTab] && !squareTabs[activeTab]) delete yOverride[activeTab]; saveState(); refreshRayBtn(); render(); });
 btnTagLevel.addEventListener("click", ()=>{ tagLevel = tagLevel===1 ? 2 : 1; btnTagLevel.classList.toggle("active", tagLevel===1); });
 /*NEELY_CH3_START*/
 /*NEELY_CH3_START*/
@@ -1843,6 +1843,7 @@ function syncSize(){
 function render(){
   syncSize();
   if(squareTabs[activeTab] && (!yOverride[activeTab] || yOverride._key !== W+"x"+H+activeTab+isLog()+squareTabs[activeTab])) fitSquare();
+  else if(!squareTabs[activeTab] && yOverride[activeTab] && yOverride._key !== W+"x"+H+activeTab+isLog()+squareTabs[activeTab]) delete yOverride[activeTab];   // stale ray-only lock after a resize or LOG switch
   recomputeYDomain();
   svg.innerHTML = "";
   // macro trendlines (★ Macro view / ⚑ Neely start / manual +New trendline) are built at
@@ -2919,6 +2920,7 @@ btnPan.addEventListener("click", ()=>{
   updateToolState(); render();
 });
 btnReset.addEventListener("click", ()=>{
+  if(!squareTabs[activeTab]) delete yOverride[activeTab];
   if(squareTabs[activeTab]){ squareTabs[activeTab]=false; delete yOverride[activeTab]; saveState(); refreshSquareBtn(); }
   xDomain = defaultDomainFor(activeTab);
   render();
@@ -3442,20 +3444,40 @@ svg.addEventListener("wheel", (evt)=>{
   const panSpan = panBounds[1]-panBounds[0];
   newSpan = Math.min(newSpan, panSpan);
   newSpan = Math.max(newSpan, 7*86400000*6);
-  const ratio = (t0-xDomain[0])/(xDomain[1]-xDomain[0]);
+  const oldSpan = xDomain[1]-xDomain[0];
+  const ratio = (t0-xDomain[0])/oldSpan;
+  const yLock = aspectLock();   // square / 45° view: scale price with the same pixels-per-unit as time, about the cursor
+  let u0=0, uRatio=0, uLo=0, uHi=0;
+  if(yLock){ uLo=yToU(yDomain[0]); uHi=yToU(yDomain[1]); u0=yToU(invY(p.y)); uRatio=(u0-uLo)/(uHi-uLo); }
   let lo = t0 - ratio*newSpan;
   let hi = lo + newSpan;
   if(lo<panBounds[0]){ lo=panBounds[0]; hi=lo+newSpan; }
   if(hi>panBounds[1]){ hi=panBounds[1]; lo=hi-newSpan; }
   xDomain = [lo,hi];
+  if(yLock){
+    const f = newSpan/oldSpan, nU = (uHi-uLo)*f, nLo = u0 - uRatio*nU;
+    yOverride[activeTab] = [uToY(nLo), uToY(nLo+nU)];
+  }
   render();
 }, {passive:false});
+// aspect lock: while the square fit or the 45° ray is on, zoom and pan move both axes together so the 45° line stays 45°
+function aspectLock(){
+  if(!(squareTabs[activeTab] || ray45Tabs[activeTab])) return false;
+  if(!yOverride[activeTab]){
+    yOverride[activeTab] = yDomain.slice();
+    yOverride._key = W+"x"+H+activeTab+isLog()+squareTabs[activeTab];
+  }
+  return true;
+}
+function yToU(v){ return isLog() ? Math.log(v) : v; }
+function uToY(u){ return isLog() ? Math.exp(u) : u; }
 
-let dragStart=null, dragDomainStart=null;
+let dragStart=null, dragDomainStart=null, dragYStart=null;
 svg.addEventListener("mousedown", (evt)=>{
   if(mode!=="pan" || dragHandle) return;
   dragStart = svgPoint(evt);
   dragDomainStart = xDomain.slice();
+  dragYStart = aspectLock() ? [yToU(yDomain[0]), yToU(yDomain[1])] : null;
   svg.classList.add("panning");
 });
 window.addEventListener("mousemove", (evt)=>{
@@ -3468,6 +3490,10 @@ window.addEventListener("mousemove", (evt)=>{
   if(lo<panBounds[0]){ lo=panBounds[0]; hi=lo+span; }
   if(hi>panBounds[1]){ hi=panBounds[1]; lo=hi-span; }
   xDomain=[lo,hi];
+  if(dragYStart){
+    const dyPx = p.y-dragStart.y, du = dyPx/plot.h*(dragYStart[1]-dragYStart[0]);
+    yOverride[activeTab] = [uToY(dragYStart[0]+du), uToY(dragYStart[1]+du)];
+  }
   render();
 });
 window.addEventListener("mouseup", ()=>{ dragStart=null; svg.classList.remove("panning"); });
