@@ -233,6 +233,8 @@ body.embed{padding-left:8px; padding-right:8px;}
           <button type="button" id="btnCompactUndo" class="toggle" style="cursor:pointer" title="Remove the last compacted pattern you defined">↶ compact</button>
           <button type="button" id="btnImpulse" class="toggle" style="cursor:pointer" title="Impulse ideas: searches the visible window for the best 5-wave Impulse skeletons that pass the Chapter 5 hard tests (R2-R7, Extension) and offers a First and a Second best. Click one to see it drawn on the chart, click it again to remove it">⌁ Impulse?</button>
           <button type="button" id="btnZigzag" class="toggle" style="cursor:pointer" title="Zigzag ideas: searches the visible window for 5-3-5 Zigzags that pass the Chapter 5 tests (pp. 5-19 to 5-22: b between 1% and 61.8% of a, c beyond the end of a, Normal / Truncated / Elongated). Offers a First and a Second best, plus the best Truncated one. Click one to draw it, click again to remove it">⌁ Zigzag?</button>
+          <button type="button" id="btnDZI" class="toggle" style="cursor:pointer" title="DZigzag ideas: searches the visible window for Double Zigzags (Chapter 8 Table A row 1): two Zigzags joined by one x-wave. Tests each Zigzag (Ch. 5), the x-wave (under 61.8% of the first), similarity (1/3) and progression. Click a row to draw it, click again to remove it">⌁ DZigzag?</button>
+          <button type="button" id="btnDCI" class="toggle" style="cursor:pointer" title="DCombo ideas: searches the visible window for Double Flats and Double Combinations (Table A rows 2-5: Zigzag/Flat followed by an x-wave and a Flat or a Contracting Triangle). Offers the best of each row that survives the tests. Click a row to draw it, click again to remove it">⌁ DCombo?</button>
           <button type="button" id="btnM1View" class="toggle" style="cursor:pointer" title="Zoom on one monowave m1 with its m(-4)..m0 and m2..m4 neighbours (click an R-tag to choose it)">◎ m1 view</button>
           <label class="toggle" id="piWrap" title="Position Indicator Sequences (p.3-61..65): drop every label that has no legal neighbours, then run Pattern Isolation (circle the end of the first wave with only L5/L3, walk back three labels)"><input type="checkbox" id="togglePI"><span>PI + isolate</span></label>
           <label class="toggle" id="ruleMinWrap" title="Hide tags of monowaves smaller than this % of the visible price range"><span>min size</span><input type="range" id="ruleMin" min="0" max="15" step="0.5" value="0" style="width:80px"><span id="ruleMinVal">0%</span></label>
@@ -244,6 +246,7 @@ body.embed{padding-left:8px; padding-right:8px;}
           <div id="impCard" hidden style="position:absolute;left:84px;top:10px;z-index:6;max-width:460px;background:var(--panel,#fff);border:1px solid #7c3aed;border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.18)"></div>
           <div id="dzCard" hidden style="position:absolute;right:10px;bottom:46px;z-index:6;max-width:520px;max-height:55%;overflow:auto;background:var(--panel,#fff);border:1px solid #0891b2;border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.18)"></div>
           <div id="zzCard" hidden style="position:absolute;right:10px;top:10px;z-index:6;max-width:470px;background:var(--panel,#fff);border:1px solid #0d9488;border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.18)"></div>
+          <div id="cbCard" hidden style="position:absolute;right:10px;top:10px;z-index:6;max-width:430px;max-height:82%;overflow:auto;background:var(--panel,#fff);border:1px solid #9333ea;border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.18)"></div>
           <div class="rail">
             <button id="btnPan" title="Pan: drag to shift the date range (scroll zooms)">✋</button>
             <button id="btnReset" title="Reset view">⟲</button>
@@ -1611,6 +1614,16 @@ const NEELY3 = (function(){
           : "81% level "+f(target)+" not reached yet in the data",
           "Truncated Zigzag without the required retracement: it is not truncated; reread as another pattern");
       }
+      if(this.cls==="Elongated"){
+        // p. 5-22: after an Elongated Zigzag the market should reverse and retrace more than 61.8% of wave c before c's end is violated (otherwise it is likely an Impulse).
+        // The same page says Elongated Zigzags belong to the early stages of complex polywaves, so this stays a SOFT test (it ranks, it does not rule out).
+        const lvl = P(3)-dir*0.618*c, aft2 = this.ctx.after || []; let r2 = null, h2 = null;
+        for(const q of aft2){ if(dir*q.v<=dir*lvl){ r2 = true; h2 = q; break; } if(dir*q.v>dir*P(3)){ r2 = false; h2 = q; break; } }
+        this.add("ZE","5-22 Elongated","after an Elongated Zigzag the market retraces more than 61.8% of wave c before the end of c is violated", r2, false,
+          r2===true ? "61.8% level "+f(lvl)+" reached at "+new Date(h2.t).toISOString().slice(0,10)
+          : r2===false ? "price made a new extreme beyond c's end ("+f(h2.v)+") before retracing 61.8% of c (the book allows this early in a complex polywave)"
+          : "61.8% level "+f(lvl)+" not reached yet in the data");
+      }
       this.add("TRI","5-21","a Truncated Zigzag is usually one of the five legs of a Triangle (or a segment of one)", this.cls==="Truncated" ? null : true, false, this.cls==="Truncated" ? "context test: look at what surrounds it (not coded)" : "not applicable");
       this.add("535","5-19","a and c are 5-wave moves (impulsive, or a Terminal), b is a 3-wave move", null, false, "needs the inside of each wave: not tested here");
     }
@@ -1648,7 +1661,105 @@ const NEELY3 = (function(){
       this.add("535","8 Table A","every a and c is a 5-wave move, every b a 3-wave move, the x-wave a 3-wave move (compacted :3)", null, false, "needs the inside of each wave: not tested here");
     }
   }
-  const api = {Test, Candidate, ImpulseCandidate, ZigzagCandidate, MultiZigzagCandidate};
+  class FlatCandidate extends Candidate {
+    // Flat (3-3-5), pp. 5-17 to 5-19: minimum b and c, then the B-wave classes Weak / Normal / Strong and the variation names
+    constructor(p, s, fine, ctx){ super("Flat", p, s, 3, fine); this.tests = []; this.ctx = ctx || {}; this.build(); }
+    build(){
+      if(!this.ctx) return;
+      const f = x=>Math.round(x*100)/100, pc = x=>Math.round(x*1000)/10;
+      const a = this.len(0), b = this.len(1), c = this.len(2), dir = Math.sign(this.leg(0)), U = k=>dir*this.p[this.s+k].v;
+      const rb = b/a, rc = c/a, cb = c/b; this.ratioB = rb; this.ratioC = rc; this.ratioCB = cb;
+      this.add("FB","5-17 min b","wave b retraces at least 61.8% of wave a", rb>=0.618, true, "b = "+pc(rb)+"% of a", "b under 61.8% of a: not a Flat (look at a Zigzag)");
+      this.add("FC","5-17 min c","wave c is at least 38.2% of wave a", rc>=0.382, true, "c = "+pc(rc)+"% of a", "c under 38.2% of a: not a Flat");
+      let bcls = "", cls = "";
+      if(rb>=0.618){
+        const R = Math.round(rb*100);
+        if(R<=80){ bcls = "Weak B-wave"; cls = cb<1 ? "Double Failure" : (cb<=1.382 ? "B-Failure" : "Elongated Flat"); }
+        else if(R<=100){ bcls = "Normal B-wave"; cls = cb<1 ? "C-Failure" : (cb<=1.382 ? "Common Flat" : "Elongated Flat"); }
+        else if(rb<=1.236){ bcls = "Strong B-wave"; cls = rc>1.618 ? "Elongated Flat" : (cb>=1 ? "Irregular" : "Irregular (c shorter than b: the book does not name it)"); }
+        else { bcls = "Strong B-wave over 123.6%"; const u0=U(0), u1=U(1), u3=U(3); cls = u3>=u1 ? "Irregular" : (u3>u0 ? "Irregular Failure" : "Running Correction"); }
+      }
+      this.bcls = bcls; this.cls = cls;
+      this.add("CLS","5-18 class", bcls+" → "+cls+" (c = "+pc(cb)+"% of b, "+pc(rc)+"% of a)", true, false, "");
+      this.add("535","5-16","a and b are 3-wave moves, c is a 5-wave move", null, false, "needs the inside of each wave: not tested here");
+    }
+  }
+  class TriangleCandidate extends Candidate {
+    // Contracting Triangle (3-3-3-3-3), pp. 5-23 to 5-29: Horizontal (b not longer than a), Irregular (b longer, lines opposite), Running (b longest, lines the same way)
+    constructor(p, s, fine, ctx){ super("Contracting Triangle", p, s, 5, fine); this.tests = []; this.ctx = ctx || {}; this.build(); }
+    build(){
+      if(!this.ctx) return;
+      const f = x=>Math.round(x*100)/100, pc = x=>Math.round(x*1000)/10, P = k=>this.p[this.s+k];
+      const L = [0,1,2,3,4].map(k=>this.len(k)), a=L[0], b=L[1], c=L[2], d=L[3], e=L[4], dir = Math.sign(this.leg(0));
+      this.add("TB","5-23","wave b is between 38.2% and 261.8% of wave a", b>=0.382*a && b<=2.618*a, true, "b = "+pc(b/a)+"% of a");
+      const ret = [b/a, c/b, d/c, e/d], n50 = ret.filter(r=>r>=0.5).length;
+      this.add("T50","5-25","three of the four retracing waves (b, c, d, e) retrace at least 50% of the wave before", n50>=3, true, "b "+pc(ret[0])+"% · c "+pc(ret[1])+"% · d "+pc(ret[2])+"% · e "+pc(ret[3])+"% (Running Triangles may miss this)");
+      this.add("TE","5-28","wave e is the smallest wave of the Triangle, by price", e<=Math.min(a,b,c,d), true, "e = "+f(e)+" · smallest of a-d = "+f(Math.min(a,b,c,d)));
+      // trendlines: through the ends of b and d, and through the ends of a and c
+      const sl = (A,B)=>(B.v-A.v)/(B.t-A.t), sbd = sl(P(2),P(4)), sac = sl(P(1),P(3));
+      const at = (A,s,t)=>A.v+s*(t-A.t), t2 = P(2).t, t5 = P(5).t;
+      const gap = t=>{ const g = at(P(2),sbd,t)-at(P(1),sac,t); return dir<0 ? g : -g; };
+      const g2 = gap(t2), g5 = gap(t5);
+      this.add("TC","5-24 lines","the two trendlines converge and have not crossed by the end of wave e", g2>g5 && g5>0, true, "gap between the lines "+f(g2)+" at the end of b → "+f(g5)+" at the end of e");
+      let apexT = null, apexV = null;
+      if(g2>g5){ apexT = t2 + g2/(g2-g5)*(t5-t2); apexV = at(P(2),sbd,apexT); }
+      this.apexT = apexT; this.apexV = apexV; this.lines = {bd:{a:P(2), s:sbd}, ac:{a:P(1), s:sac}};
+      const flat = s=>Math.abs(s*(t5-t2))<0.02*a, sg = s=>flat(s) ? 0 : Math.sign(s), same = sg(sbd)*sg(sac)>0;
+      const varn = b<=a ? "Horizontal" : (same ? "Running" : "Irregular"); this.cls = varn;
+      this.add("TL","5-28 lines", varn==="Running" ? "Running: both trendlines slope the same way" : "trendlines go in opposite directions (or one is flat)", varn==="Running" ? same : !same, true,
+        "slopes "+(sg(sbd)>0?"up":sg(sbd)<0?"down":"flat")+" (b-d) and "+(sg(sac)>0?"up":sg(sac)<0?"down":"flat")+" (a-c)", "same-direction lines need b longer than a (Running)");
+      if(varn==="Horizontal"){
+        this.add("TD","5-29","wave d is smaller than wave c", d<c, true, "d = "+f(d)+" · c = "+f(c));
+        this.add("TE2","5-29","wave e is smaller than wave d", e<d, true, "e = "+f(e)+" · d = "+f(d));
+        if(apexV!==null){ const k = L.indexOf(Math.max.apply(null,L)), mid = (P(k).v+P(k+1).v)/2, lim = 0.309*L[k];
+          this.add("TAP","5-29 apex (Limiting)","the apex price falls within 61.8% of the longest segment, centred in the middle of it", Math.abs(apexV-mid)<=lim, false, "apex "+f(apexV)+" vs "+f(mid-lim)+" … "+f(mid+lim)); }
+      } else if(varn==="Irregular"){
+        this.add("TC2","5-30","waves c, d and e are each smaller than the wave before", c<b && d<c && e<d, true, "b "+f(b)+" · c "+f(c)+" · d "+f(d)+" · e "+f(e));
+      } else {
+        this.add("TR","5-30","Running: b is the longest wave, c is smaller than b, d larger than c, e smaller than d", b>=Math.max(a,c,d,e) && c<b && d>c && e<d, true, "a "+f(a)+" · b "+f(b)+" · c "+f(c)+" · d "+f(d)+" · e "+f(e));
+      }
+      // rule 8 (p. 5-26): no part of waves c or e may break the b-d line; checked on the finer pivots (soft)
+      if(this.fine && apexT!==null){
+        const tol = 0.01*a; let bad = null;
+        for(const q of this.fine){ if(q.t<=t2 || q.t>=t5) continue; const ln = at(P(2),sbd,q.t); if(dir<0 ? q.v>ln+tol : q.v<ln-tol){ bad = q; break; } }
+        this.add("TBD","5-26 b-d line","no part of wave c or e breaks the b-d trendline", bad===null, false, bad ? "broken at "+new Date(bad.t).toISOString().slice(0,10)+" ("+f(bad.v)+") on the finer pivots" : "clear on the finer pivots");
+      }
+      this.add("THR","5-27","after the Triangle the thrust is at least 75% of its widest wave and passes its extreme", null, false, "needs the move after wave e");
+      this.add("535","5-23","every segment is a 3-wave move", null, false, "needs the inside of each wave: not tested here");
+    }
+  }
+  const ZZLEG = {zz:3, flat:3, tri:5};
+  class ComboCandidate extends Candidate {
+    // Chapter 8 Table A rows 1-5: [zz,zz] Double Zigzag · [zz,tri] / [zz,flat] / [flat,tri] Double Combination · [flat,flat] Double Flat
+    constructor(p, kinds, fine, afterExtra){ super("Double", p, 0, ZZLEG[kinds[0]]+1+ZZLEG[kinds[1]], fine); this.tests = []; this.kinds = kinds; this.afterExtra = afterExtra || []; this.build(); }
+    build(){
+      if(!this.kinds) return;
+      const f = x=>Math.round(x*100)/100, pc = x=>Math.round(x*1000)/10, P = this.p, D = 86400000, k1 = this.kinds[0], k2 = this.kinds[1], n1 = ZZLEG[k1], n2 = ZZLEG[k2];
+      const key = k1+"+"+k2;
+      const NAMES = {"zz+zz":["Double Zigzag","row 1"], "zz+tri":["Double Combination (Zigzag + Triangle)","row 2"], "zz+flat":["Double Combination (Zigzag + Flat)","row 3"], "flat+flat":["Double Flat","row 4"], "flat+tri":["Double Combination (Flat + Triangle)","row 5"]};
+      this.kind = NAMES[key][0]; this.row = NAMES[key][1]; this.key = key;
+      const mk = (kind, s, ctx)=> kind==="zz" ? new ZigzagCandidate(P, s, this.fine, ctx) : kind==="flat" ? new FlatCandidate(P, s, this.fine, ctx) : new TriangleCandidate(P, s, this.fine, ctx);
+      this.parts = [ mk(k1, 0, {prev:0, after:P.slice(n1+1)}), mk(k2, n1+1, {prev:0, after:this.afterExtra}) ];
+      this.parts.forEach((z,i)=>{
+        const bad = z.failed.map(t=>t.id).join(", "), opn = z.tests.filter(t=>t.hard && t.result===null).map(t=>t.id).join(", ");
+        this.add("P"+(i+1),"Table A","part "+(i+1)+" is a legal "+(z.kind==="Contracting Triangle"?"Contracting Triangle":z.kind),
+          z.status==="ruled out" ? false : (z.status==="open" ? null : true), true,
+          (z.cls||"")+(z.ratioB!==undefined ? " · b = "+pc(z.ratioB)+"% · c = "+pc(z.ratioC)+"% of a" : "")+(bad?" · fails "+bad:"")+(opn?" · open "+opn:""),
+          "not a "+z.kind+": this reading of Table A is out");
+      });
+      const range = (s,n)=>{ let lo = Infinity, hi = -Infinity; for(let i=s;i<=s+n;i++){ if(P[i].v<lo) lo = P[i].v; if(P[i].v>hi) hi = P[i].v; } return hi-lo; };
+      const r1 = range(0,n1), r2 = range(n1+1,n2), xl = Math.abs(P[n1+1].v-P[n1].v), x = xl/r1;
+      this.add("X1","8 Condition 1","the x-wave retraces less than 61.8% of the first corrective phase", x<0.618, true, "x = "+f(xl)+" = "+pc(x)+"% of part 1 ("+f(r1)+")", "x retraces 61.8% or more: it is not an x-wave");
+      const t1 = (P[n1].t-P[0].t)/D, t2 = (P[n1+1+n2].t-P[n1+1].t)/D, pr = Math.min(r1,r2)/Math.max(r1,r2), tm = Math.min(t1,t2)/Math.max(t1,t2);
+      this.add("S1","4-4 Similarity & Balance","the two parts: the smaller is at least 1/3 of the larger in price or in time", pr>=1/3 || tm>=1/3, true,
+        "price "+f(r1)+" vs "+f(r2)+" ("+Math.round(pr*100)+"%) "+(pr>=1/3?"✔":"✘")+" · time "+Math.round(t1)+"d vs "+Math.round(t2)+"d ("+Math.round(tm*100)+"%) "+(tm>=1/3?"✔":"✘"), "parts not similar");
+      const d1 = Math.sign(P[1].v-P[0].v), d2 = Math.sign(P[n1+2].v-P[n1+1].v);
+      this.add("DIR","8 Table A","part 2 starts in the direction of part 1", d1===d2, true, "part 1 "+(d1>0?"up":"down")+", part 2 "+(d2>0?"up":"down"));
+      if(key==="zz+zz") this.add("DIR2","8 Table A","the second zigzag ends beyond the end of the first", d1>0 ? P[n1+1+n2].v>P[n1].v : P[n1+1+n2].v<P[n1].v, true, "ends "+f(P[n1+1+n2].v)+" vs "+f(P[n1].v), "second zigzag does not progress past the first");
+      this.add("535b","8 Table A","the inside of every wave follows the (5-3-5 / 3-3-5 / 3-3-3-3-3) pattern of its part, and the x-wave is a 3-wave move", null, false, "needs the inside of each wave: not tested here");
+    }
+  }
+  const api = {Test, Candidate, ImpulseCandidate, ZigzagCandidate, MultiZigzagCandidate, FlatCandidate, TriangleCandidate, ComboCandidate};
   if(typeof module!=="undefined" && module.exports) module.exports = api; else root.NEELY5 = api;
 })(typeof window!=="undefined" ? window : globalThis);
 /*NEELY_CH5_END*/
@@ -2547,6 +2658,7 @@ function render(){
   drawImpulseOverlay();
   drawWaveSizes();
   drawZigzagOverlay();
+  drawComboOverlay();
   renderDzCard();
   renderCyanList();
   renderBoxList();
@@ -3419,6 +3531,7 @@ window.__zzPick = function(k){ zzSel = (zzSel===k) ? -1 : k; renderZzCard(); ren
 window.__zzRun = function(){ zzRun(); };
 window.__zzClose = function(){ zzOn = false; zzSel = -1; document.getElementById("btnZigzag").classList.remove("active"); renderZzCard(); render(); };
 document.getElementById("btnZigzag").addEventListener("click", ()=>{
+  if(!zzOn && cbOn) window.__cbClose();
   zzOn = !zzOn; document.getElementById("btnZigzag").classList.toggle("active", zzOn);
   if(zzOn) zzRun(); else { zzSel = -1; renderZzCard(); render(); }
 });
@@ -3492,6 +3605,162 @@ function drawWaveSizes(){
     const tx = el("text",{x:inside ? mx : mx + (up ? -13 : 13), y:my + 4,"text-anchor":"middle","font-size":11,"font-weight":700,fill:"#7c2d12",
       stroke:inside ? "none" : "var(--panel)","stroke-width":3,"paint-order":"stroke"});
     tx.textContent = String(Math.round(Math.abs(b.v-a.v))); g2.appendChild(tx); n++;
+  }
+  svg.appendChild(g2);
+}
+
+// ---------- DZigzag? / DCombo?: Double Zigzag, Double Flat and Double Combination ideas in the visible window (Chapter 8 Table A rows 1-5 on Chapter 5 parts) ----------
+let cbOn = null, cbList = [], cbSel = -1, cbTab = null, cbWin = "", cbNote = "", cbDet = false;
+function ideaPool(maxPiv){
+  const rej = rejectedMono[activeTab] || [];
+  const all = pivotSetA();
+  let P = (redOnly && rej.length) ? all.filter(p=>rej.includes(p.t)) : all.slice();
+  P = P.filter(p=>p.t>=xDomain[0] && p.t<=xDomain[1]);
+  let thr = 0, Q = P;
+  for(const t of [0,0.004,0.008,0.012,0.02,0.03,0.045,0.07,0.1]){ thr = t; Q = impZigzag(P,t); if(Q.length<=maxPiv) break; }
+  return {all, P, Q, thr};
+}
+function cbSearch(mode){
+  cbNote = "";
+  const pool = ideaPool(30), all = pool.all, Q = pool.Q, n = Q.length;
+  cbWin = fmtDate(xDomain[0])+" → "+fmtDate(xDomain[1]);
+  if(pool.P.length<8 || n<8){ cbNote = "Fewer than 8 pivots in the window."; return []; }
+  if(pool.thr>0) cbNote = "Window has "+pool.P.length+" pivots: counted only swings of "+(pool.thr*100).toFixed(1)+"% or more ("+n+" pivots).";
+  let lo = Infinity, hi = -Infinity; Q.forEach(p=>{ if(p.v<lo) lo = p.v; if(p.v>hi) hi = p.v; }); const rng = hi-lo, cache = {};
+  const ok = (a,b)=>{ const key = a*1000+b; if(cache[key]!==undefined) return cache[key];
+    const l = Math.min(Q[a].v,Q[b].v), h = Math.max(Q[a].v,Q[b].v); let r = true;
+    for(let k=a+1;k<b;k++) if(Q[k].v<l || Q[k].v>h){ r = false; break; }
+    return cache[key] = r; };
+  const need = mode==="dz" ? {c1:["zz"], c2:["zz"]} : {c1:["zz","flat"], c2:["flat","tri"]};
+  const want = mode==="dz" ? ["zz+zz"] : ["zz+tri","zz+flat","flat+flat","flat+tri"];
+  const parts = {zz:[], flat:[], tri:[]}, CAP = 2500;
+  for(const dir of [1,-1]){
+    const u = i=>dir*Q[i].v;
+    for(let i0=0;i0<n-3;i0++) for(let i1=i0+1;i1<n-2;i1++){
+      if(!(u(i1)>u(i0)) || !ok(i0,i1)) continue; const A = u(i1)-u(i0); if(A<0.03*rng) continue;
+      for(let i2=i1+1;i2<n-1;i2++){
+        const B = u(i1)-u(i2); if(!(B>0) || B<0.01*A || !ok(i1,i2)) continue;
+        for(let i3=i2+1;i3<n;i3++){
+          const C = u(i3)-u(i2); if(!(C>0) || C<0.382*A || !ok(i2,i3)) continue;
+          const t = {idx:[i0,i1,i2,i3], dir, span:Math.max(A,B,C)};
+          if(B<=0.618*A){ if(parts.zz.length<CAP*4) parts.zz.push(t); } else { if(parts.flat.length<CAP*4) parts.flat.push(t); }
+        }
+      }
+    }
+    if(need.c2.indexOf("tri")>=0){
+      for(let i0=0;i0<n-5;i0++) for(let i1=i0+1;i1<n-4;i1++){
+        if(!(u(i1)>u(i0)) || !ok(i0,i1)) continue; const a = u(i1)-u(i0); if(a<0.02*rng) continue;
+        for(let i2=i1+1;i2<n-3;i2++){ const b = u(i1)-u(i2); if(!(b>=0.382*a && b<=2.618*a) || !ok(i1,i2)) continue;
+          for(let i3=i2+1;i3<n-2;i3++){ const c = u(i3)-u(i2); if(!(c>0) || !ok(i2,i3)) continue;
+            for(let i4=i3+1;i4<n-1;i4++){ const d = u(i3)-u(i4); if(!(d>0) || !ok(i3,i4)) continue;
+              for(let i5=i4+1;i5<n;i5++){ const e = u(i5)-u(i4); if(!(e>0) || e>Math.min(a,b,c,d) || !ok(i4,i5)) continue;
+                if(parts.tri.length<CAP*4) parts.tri.push({idx:[i0,i1,i2,i3,i4,i5], dir, span:Math.max(a,b,c,d)}); } } } }
+      }
+    }
+  }
+  const trim = L=>L.sort((x,y)=>y.span-x.span).slice(0,CAP);
+  parts.zz = trim(parts.zz); parts.flat = trim(parts.flat); parts.tri = trim(parts.tri);
+  const rangeOf = t=>{ let l = Infinity, h = -Infinity; t.idx.forEach(i=>{ if(Q[i].v<l) l = Q[i].v; if(Q[i].v>h) h = Q[i].v; }); return h-l; };
+  const bystart = {zz:{}, flat:{}, tri:{}};
+  ["zz","flat","tri"].forEach(k=>parts[k].forEach(t=>{ t.range = rangeOf(t); t.dur = Q[t.idx[t.idx.length-1]].t-Q[t.idx[0]].t; (bystart[k][t.idx[0]] = bystart[k][t.idx[0]] || []).push(t); }));
+  const pairs = [];
+  for(const key of want){
+    const k1 = key.split("+")[0], k2 = key.split("+")[1];
+    parts[k1].forEach(p1=>{
+      const e1 = p1.idx[p1.idx.length-1], d = p1.dir;
+      for(let s2=e1+1;s2<n;s2++){
+        const L2 = bystart[k2][s2]; if(!L2) continue;
+        const xl = d*(Q[e1].v-Q[s2].v); if(!(xl>0) || xl>=0.618*p1.range || !ok(e1,s2)) continue;
+        L2.forEach(p2=>{
+          if(p2.dir!==d) return;
+          const pr = Math.min(p1.range,p2.range)/Math.max(p1.range,p2.range), tm = Math.min(p1.dur,p2.dur)/Math.max(p1.dur,p2.dur);
+          if(!(pr>=1/3 || tm>=1/3)) return;
+          if(key==="zz+zz" && !(d*Q[p2.idx[3]].v > d*Q[e1].v)) return;
+          const span = Math.abs(Math.max(Q[p2.idx[p2.idx.length-1]].t,Q[e1].t)-Q[p1.idx[0]].t);
+          pairs.push({key, p1, p2, size:p1.range+p2.range});
+        });
+      }
+    });
+  }
+  pairs.sort((x,y)=>y.size-x.size);
+  const out = [], seen = {};
+  for(const pr of pairs.slice(0,6000)){
+    const idx = pr.p1.idx.concat(pr.p2.idx), id = idx.join(",");
+    if(seen[id]) continue; seen[id] = 1;
+    const piv = idx.map(i=>({t:Q[i].t, v:Q[i].v})), after = all.filter(p=>p.t>piv[piv.length-1].t).map(p=>({t:p.t,v:p.v}));
+    const c = new NEELY5.ComboCandidate(piv, pr.key.split("+"), all, after);
+    if(c.status==="ruled out") continue;
+    const soft = c.tests.filter(t=>!t.hard && t.result===false).length;
+    const sp = Math.abs(piv[piv.length-1].t-piv[0].t)/Math.max(1,xDomain[1]-xDomain[0]), rp = (pr.p1.range+pr.p2.range)/rng;
+    let bal = 0;   // ranking only (my weights): out-of-proportion legs cost points, Normal / Common parts earn a little
+    c.parts.forEach(z=>{ if(z.ratioC!==undefined){ bal -= Math.min(1,Math.max(0,z.ratioC-2.618)*0.25); if(z.kind==="Flat") bal -= Math.min(1,Math.max(0,z.ratioB-1.618)*0.25); if(z.cls==="Normal"||z.cls==="Common Flat") bal += 0.3; } });
+    const score = Math.min(2,rp) + Math.min(1.5,2*sp) + (c.status==="alive"?1:0) - 0.15*soft + bal;
+    out.push({c, idx, piv, score, key:pr.key, dirUp:piv[piv.length-1].v>piv[0].v});
+  }
+  out.sort((x,y)=>y.score-x.score);
+  const share = (x,y)=>x.idx.filter(i=>y.idx.indexOf(i)>=0).length, picks = [];
+  if(mode==="dz"){
+    out.forEach(x=>{ if(picks.length<2 && picks.every(p=>share(x,p)<=3)){ x.label = picks.length ? "2nd best" : "1st best"; picks.push(x); } });
+  } else {
+    want.forEach(k=>{ const x = out.find(o=>o.key===k); if(x){ x.label = x.c.row; picks.push(x); } });
+    picks.sort((x,y)=>y.score-x.score);
+  }
+  if(!picks.length) cbNote = (cbNote?cbNote+" ":"")+"No "+(mode==="dz"?"Double Zigzag":"Double Flat or Double Combination")+" in this window passes the hard tests.";
+  else if(mode==="dc"){ const RN = {"zz+tri":"row 2 (Zigzag + Triangle)","zz+flat":"row 3 (Zigzag + Flat)","flat+flat":"row 4 (Double Flat)","flat+tri":"row 5 (Flat + Triangle)"}, miss = want.filter(k=>!picks.some(p=>p.key===k)).map(k=>RN[k]);
+    if(miss.length) cbNote = (cbNote?cbNote+" ":"")+"Nothing survives the hard tests for "+miss.join(", ")+"."; }
+  return picks;
+}
+function cbRun(){ cbList = cbSearch(cbOn); cbSel = cbList.length ? 0 : -1; cbTab = activeTab; renderCbCard(); render(); }
+function renderCbCard(){
+  const card = document.getElementById("cbCard"); if(!card) return;
+  card.hidden = !cbOn; if(!cbOn) return;
+  const mark = r=>r===true?'<span style="color:#15803d">✔</span>':r===false?'<span style="color:#b91c1c">✘</span>':'<span style="color:#b45309">?</span>';
+  const pc = x=>Math.round(x*100)+"%";
+  const rows = cbList.map((x,k)=>{
+    const c = x.c, on = cbSel===k, a = x.piv[0], b = x.piv[x.piv.length-1];
+    const x1 = c.tests.find(t=>t.id==="X1"), s1 = c.tests.find(t=>t.id==="S1");
+    const col = c.status==="alive" ? "#15803d" : "#b45309";
+    return '<div onclick="window.__cbPick('+k+')" style="cursor:pointer;margin:5px 0;padding:5px 7px;border:1px solid '+(on?'#9333ea':'#d4d4d8')+';border-radius:6px;background:'+(on?'#f3e8ff':'transparent')+'">'
+      +'<b style="color:#7e22ce">'+x.label+'</b> · '+c.kind+' · '+(x.dirUp?'↑':'↓')+' '+fmtDate(a.t)+' → '+fmtDate(b.t)+' · <b style="color:'+col+'">'+c.status.toUpperCase()+'</b>'
+      +'<div style="font-size:11px;color:#52525b;margin-top:2px">part 1: '+(c.parts[0].cls||c.parts[0].kind)+' · part 2: '+(c.parts[1].cls||c.parts[1].kind)+' · '+(x1?x1.note.replace(/^x = [\d.]+ = /,'x = '):'')+'</div></div>';
+  }).join("");
+  let det = "";
+  if(cbSel>=0 && cbList[cbSel] && cbDet){ const c = cbList[cbSel].c;
+    det = '<div style="margin-top:6px;border-top:1px solid #e4e4e7;padding-top:5px"><b>'+c.kind+'</b> ('+c.row+' of Table A)</div>' + c.parts.map((z,i)=>'<div style="margin:3px 0 1px;font-size:11.5px"><b>Part '+(i+1)+': '+z.kind+'</b></div>'+z.tests.filter(t=>t.id!=="535"&&t.id!=="THR"&&t.id!=="TRI").map(t=>'<div style="margin:1px 0;font-size:11px">'+mark(t.result)+' '+t.text+'<span style="color:#52525b"> — '+t.note+'</span></div>').join("")).join("")
+      + '<div style="margin:3px 0 1px;font-size:11.5px"><b>Between the parts</b></div>' + c.tests.filter(t=>["X1","S1","DIR","DIR2"].indexOf(t.id)>=0).map(t=>'<div style="margin:1px 0;font-size:11px">'+mark(t.result)+' '+t.text+'<span style="color:#52525b"> — '+t.note+'</span></div>').join("") + '</div>';
+  }
+  card.innerHTML = '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><b>'+(cbOn==="dz"?"DZigzag ideas":"DCombo ideas")+'</b> <span style="font-size:11px;color:#71717a">'+cbWin+'</span>'
+    +'<span><a href="#" onclick="window.__cbDet();return false" title="Show or hide the test list of the selected row">'+(cbDet?'details ▴':'details ▾')+'</a> &nbsp; <a href="#" onclick="window.__cbRun();return false" title="Search again for the window now on screen">↻</a> &nbsp; <a href="#" onclick="window.__cbClose();return false" title="Close">✕</a></span></div>'
+    + (rows || '<div style="margin:6px 0;color:#71717a">'+(cbNote||"Nothing found.")+'</div>')
+    + (cbList.length && cbNote ? '<div style="font-size:11px;color:#71717a">'+cbNote+'</div>' : '') + det
+    + '<div style="font-size:11px;color:#71717a;margin-top:5px">Click a row to draw it, click again to remove. Pivots only: the 5-3-5 / 3-3-5 / 3-3-3-3-3 inside of the waves is not tested. Triangle trendlines use straight value (not log). Similarity (1/3 of price or time) is applied to the two parts.</div>';
+}
+window.__cbPick = function(k){ cbSel = (cbSel===k) ? -1 : k; renderCbCard(); render(); };
+window.__cbRun = function(){ cbRun(); };
+window.__cbDet = function(){ cbDet = !cbDet; renderCbCard(); };
+window.__cbClose = function(){ cbOn = null; cbSel = -1; ["btnDZI","btnDCI"].forEach(id=>document.getElementById(id).classList.remove("active")); renderCbCard(); render(); };
+function cbToggle(mode){
+  if(cbOn===mode){ window.__cbClose(); return; }
+  if(zzOn) window.__zzClose();
+  cbOn = mode; document.getElementById("btnDZI").classList.toggle("active", mode==="dz"); document.getElementById("btnDCI").classList.toggle("active", mode==="dc"); cbRun();
+}
+document.getElementById("btnDZI").addEventListener("click", ()=>cbToggle("dz"));
+document.getElementById("btnDCI").addEventListener("click", ()=>cbToggle("dc"));
+function drawComboOverlay(){
+  if(!cbOn || cbSel<0 || !cbList[cbSel] || cbTab!==activeTab) return;
+  const x = cbList[cbSel], c = x.c, COL = cbOn==="dz" ? "#0891b2" : "#9333ea", g2 = el("g",{"clip-path":"url(#plotclip)","pointer-events":"none"});
+  const P = x.piv.map(p=>[sx(p.t), sy(p.v)]), k1 = c.kinds[0], k2 = c.kinds[1];
+  const nm = (k1==="tri" ? ["a","b","c","d","e"] : ["a","b","c"]).concat(["x"], k2==="tri" ? ["a","b","c","d","e"] : ["a","b","c"]);
+  g2.appendChild(el("polyline",{points:P.map(q=>q[0]+","+q[1]).join(" "),fill:"none",stroke:COL,"stroke-width":2.6,"stroke-linejoin":"round",opacity:0.4}));
+  P.forEach(q=>g2.appendChild(el("circle",{cx:q[0],cy:q[1],r:3.5,fill:COL,opacity:0.55})));
+  const tri = c.parts.find(z=>z.lines);
+  if(tri){ const ln = tri.lines, tEnd = x.piv[x.piv.length-1].t, tS = ln.ac.a.t;
+    [ln.bd, ln.ac].forEach(L=>{ g2.appendChild(el("line",{x1:sx(tS),y1:sy(L.a.v+L.s*(tS-L.a.t)),x2:sx(tEnd),y2:sy(L.a.v+L.s*(tEnd-L.a.t)),stroke:COL,"stroke-width":1.4,"stroke-dasharray":"4 4",opacity:0.6})); }); }
+  for(let k=0;k<P.length-1;k++){
+    const a = P[k], b = P[k+1], mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2, up = b[1]<a[1], off = 15;
+    const lx = mx + (up ? -1 : 1)*off*0.7, ly = my + (up ? -off*0.5 : off*0.9), isX = nm[k]==="x";
+    g2.appendChild(el("circle",{cx:lx,cy:ly-4,r:9,fill:"var(--panel)",stroke:COL,"stroke-width":isX?2.4:1.5,opacity:0.75}));
+    const t = el("text",{x:lx,y:ly,"text-anchor":"middle","font-size":12,"font-weight":800,fill:COL,opacity:0.9}); t.textContent = nm[k]; g2.appendChild(t);
   }
   svg.appendChild(g2);
 }
