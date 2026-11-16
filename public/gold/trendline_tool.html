@@ -1855,8 +1855,25 @@ let compactMarks=[]; // [{id,t,v,label:":3"|":5",tab}] compacted-pattern tags (N
 let strips=[]; // [{id,t1,t2,v1,v2,label,kind:"up"|"dn"}] watch strips (price band x time window), drawn on every tab
 let forecasts={}; // {[tab]: [{t,v}, ...]} purple projected pivots, connected from the last validated (red) pivot
 
-function lineY(ln, t){ return ln.anchor.v + ln.slope*(t-ln.anchor.t); }
-function parY(ln, t){ return ln.parallel.anchor.v + ln.slope*(t-ln.parallel.anchor.t); }
+// A line is defined by its two pivots (anchor and p2). Its extension follows the scale on screen: straight in value on a linear chart,
+// straight in log(value) on a LOG chart, so extending it never moves it off the second pivot.
+function lineP2(ln){
+  if(!ln.p2){ const t2 = ln.endB!==ln.anchor.t ? ln.endB : ln.endA; ln.p2 = {t:t2, v:ln.anchor.v + ln.slope*(t2-ln.anchor.t)}; }
+  return ln.p2;
+}
+function logSlope(ln){
+  const p2 = lineP2(ln);
+  if(!(p2.v>0 && ln.anchor.v>0) || p2.t===ln.anchor.t) return null;
+  return Math.log(p2.v/ln.anchor.v)/(p2.t-ln.anchor.t);
+}
+function lineY(ln, t){
+  if(isLog()){ const sl = logSlope(ln); if(sl!==null) return ln.anchor.v*Math.exp(sl*(t-ln.anchor.t)); }
+  return ln.anchor.v + ln.slope*(t-ln.anchor.t);
+}
+function parY(ln, t){
+  if(isLog()){ const sl = logSlope(ln); if(sl!==null && ln.parallel.anchor.v>0) return ln.parallel.anchor.v*Math.exp(sl*(t-ln.parallel.anchor.t)); }
+  return ln.parallel.anchor.v + ln.slope*(t-ln.parallel.anchor.t);
+}
 
 function loadState(){
   let hadLevelsField = false;
@@ -3022,7 +3039,7 @@ btnNeelyStart.addEventListener("click", ()=>{
   const slope = (B.v - A.v) / (B.t - A.t);
   const color = nextColor();
   const newLine = {id:idSeq++, color, label:"Sep'22 low → Jan'26 ATH (Rule of Proportion)",
-    anchor:{t:A.t, v:A.v}, slope, endA:A.t, endB:B.t, parallel:null, tab:activeTab};
+    anchor:{t:A.t, v:A.v}, p2:{t:B.t, v:B.v}, slope, endA:A.t, endB:B.t, parallel:null, tab:activeTab};
   lines.push(newLine);
   selectedId = newLine.id;
   saveState();
@@ -3081,7 +3098,7 @@ btnMacro.addEventListener("click", ()=>{
   const slope = (B.v - A.v) / (B.t - A.t);
   const color = nextColor();
   const newLine = {id:idSeq++, color, label:"Dec'24 low → Jan'26 ATH",
-    anchor:{t:A.t, v:A.v}, slope, endA:A.t, endB:B.t, parallel:null, tab:activeTab};
+    anchor:{t:A.t, v:A.v}, p2:{t:B.t, v:B.v}, slope, endA:A.t, endB:B.t, parallel:null, tab:activeTab};
   lines.push(newLine);
   selectedId = newLine.id;
   const lastT = dailyT[dailyT.length-1];
@@ -3469,8 +3486,11 @@ function drawWaveSizes(){
     const a = src[i], b = src[i+1];
     if(b.t<xDomain[0] || a.t>xDomain[1]) continue;
     const x1=sx(a.t), y1=sy(a.v), x2=sx(b.t), y2=sy(b.v), up = b.v>a.v;
-    const tx = el("text",{x:(x1+x2)/2 + (up ? -13 : 13), y:(y1+y2)/2 + 4,"text-anchor":"middle","font-size":11,"font-weight":700,fill:"#7c2d12",
-      stroke:"var(--panel)","stroke-width":3,"paint-order":"stroke"});
+    const str = String(Math.round(Math.abs(b.v-a.v))), w = str.length*6.8+8, mx = (x1+x2)/2, my = (y1+y2)/2, legPx = Math.hypot(x2-x1, y2-y1);
+    const inside = legPx >= w+18;                 // room: the number sits ON the leg and breaks the line; short leg: beside it
+    if(inside) g2.appendChild(el("rect",{x:mx-w/2,y:my-8,width:w,height:16,rx:3,fill:"var(--panel)"}));
+    const tx = el("text",{x:inside ? mx : mx + (up ? -13 : 13), y:my + 4,"text-anchor":"middle","font-size":11,"font-weight":700,fill:"#7c2d12",
+      stroke:inside ? "none" : "var(--panel)","stroke-width":3,"paint-order":"stroke"});
     tx.textContent = String(Math.round(Math.abs(b.v-a.v))); g2.appendChild(tx); n++;
   }
   svg.appendChild(g2);
@@ -3749,7 +3769,7 @@ svg.addEventListener("click", (evt)=>{
         const color = nextColor();
         const slope = (snap.v-pendingPoint.v)/(snap.t-pendingPoint.t);
         const newLine = {id:idSeq++, color, label:"Line "+(lines.length+1),
-          anchor:{t:pendingPoint.t,v:pendingPoint.v}, slope,
+          anchor:{t:pendingPoint.t,v:pendingPoint.v}, p2:{t:snap.t,v:snap.v}, slope,
           endA:pendingPoint.t, endB:snap.t, parallel:null, tab:activeTab};
         lines.push(newLine);
         selectedId = newLine.id;
@@ -3814,6 +3834,7 @@ svg.addEventListener("mousedown", (evt)=>{
   if(t.dataset && t.dataset.handle){
     evt.stopPropagation();
     dragHandle = {lineId:+t.dataset.line, which:t.dataset.which};
+    { const l0 = lines.find(l=>l.id===dragHandle.lineId); if(l0) lineP2(l0); }
     return;
   }
   if(t.dataset && t.dataset.levelhandle){
