@@ -231,6 +231,7 @@ body.embed{padding-left:8px; padding-right:8px;}
           <select id="compactBase" title="Base given to the next compaction: automatic (from the Standard Series / Fig 3-36) or forced :3 / :5. You can also click a compacted label to cycle it" style="font-size:11px"><option value="">base auto</option><option value="3">base :3</option><option value="5">base :5</option></select>
           <button type="button" id="btnCompactUndo" class="toggle" style="cursor:pointer" title="Remove the last compacted pattern you defined">↶ compact</button>
           <button type="button" id="btnImpulse" class="toggle" style="cursor:pointer" title="Impulse ideas: searches the visible window for the best 5-wave Impulse skeletons that pass the Chapter 5 hard tests (R2-R7, Extension) and offers a First and a Second best. Click one to see it drawn on the chart, click it again to remove it">⌁ Impulse?</button>
+          <button type="button" id="btnZigzag" class="toggle" style="cursor:pointer" title="Zigzag ideas: searches the visible window for 5-3-5 Zigzags that pass the Chapter 5 tests (pp. 5-19 to 5-22: b between 1% and 61.8% of a, c beyond the end of a, Normal / Truncated / Elongated). Offers a First and a Second best, plus the best Truncated one. Click one to draw it, click again to remove it">⌁ Zigzag?</button>
           <button type="button" id="btnM1View" class="toggle" style="cursor:pointer" title="Zoom on one monowave m1 with its m(-4)..m0 and m2..m4 neighbours (click an R-tag to choose it)">◎ m1 view</button>
           <label class="toggle" id="piWrap" title="Position Indicator Sequences (p.3-61..65): drop every label that has no legal neighbours, then run Pattern Isolation (circle the end of the first wave with only L5/L3, walk back three labels)"><input type="checkbox" id="togglePI"><span>PI + isolate</span></label>
           <label class="toggle" id="ruleMinWrap" title="Hide tags of monowaves smaller than this % of the visible price range"><span>min size</span><input type="range" id="ruleMin" min="0" max="15" step="0.5" value="0" style="width:80px"><span id="ruleMinVal">0%</span></label>
@@ -240,6 +241,7 @@ body.embed{padding-left:8px; padding-right:8px;}
           <div id="splitWrap" hidden></div>
           <svg id="chart" viewBox="0 0 1180 620" preserveAspectRatio="xMidYMid meet"></svg>
           <div id="impCard" hidden style="position:absolute;left:84px;top:10px;z-index:6;max-width:460px;background:var(--panel,#fff);border:1px solid #7c3aed;border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.18)"></div>
+          <div id="zzCard" hidden style="position:absolute;right:10px;top:10px;z-index:6;max-width:470px;background:var(--panel,#fff);border:1px solid #0d9488;border-radius:8px;padding:8px 10px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.18)"></div>
           <div class="rail">
             <button id="btnPan" title="Pan: drag to shift the date range (scroll zooms)">✋</button>
             <button id="btnReset" title="Reset view">⟲</button>
@@ -1575,7 +1577,43 @@ const NEELY3 = (function(){
       this.alt = {yes, factors: fac};
     }
   }
-  const api = {Test, Candidate, ImpulseCandidate};
+  class ZigzagCandidate extends Candidate {
+    // ctx: {prev: length of the swing before wave a (proxy for "the previous impulse"), after: later pivots [{t,v}] used for the post-completion retrace test}
+    constructor(p, s, fine, ctx){ super("Zigzag", p, s, 3, fine); this.tests = []; this.ctx = ctx || {}; this.build(); }
+    build(){
+      if(!this.ctx) return;
+      const f = x=>Math.round(x*100)/100, pc = x=>Math.round(x*1000)/10;
+      const a = this.len(0), b = this.len(1), c = this.len(2), dir = Math.sign(this.leg(0)), P = k=>this.p[this.s+k].v;
+      this.ratioB = b/a; this.ratioC = c/a;
+      // 5-19  minimum / maximum parameters of a Zigzag (5-3-5)
+      if(this.ctx.prev) this.add("ZA","5-19 max a","wave a is not more than 61.8% of the swing before it", a<=0.618*this.ctx.prev, false,
+        "a "+f(a)+" = "+pc(a/this.ctx.prev)+"% of the preceding swing "+f(this.ctx.prev)+" (that swing stands in for 'the previous impulse': my proxy)");
+      else this.add("ZA","5-19 max a","wave a is not more than 61.8% of the swing before it", null, false, "no swing before wave a in this window");
+      this.add("ZB1","5-19 min b","wave b is at least 1% of wave a", b>=0.01*a, true, "b = "+pc(b/a)+"% of a");
+      this.add("ZB2","5-20 max b","wave b is not more than 61.8% of wave a", b<=0.618*a, true, "b = "+pc(b/a)+"% of a ("+f(b)+" of "+f(a)+")");
+      const gap = dir*(P(1)-P(3));                      // >0: c stops short of the end of a
+      this.gap = gap;
+      this.add("ZC1","5-20 min c","wave c moves beyond the end of wave a, even if only slightly", gap<0, true,
+        gap<0 ? "c ends "+f(-gap)+" beyond the end of a" : "c stops "+f(gap)+" short of the end of a ("+pc(gap/a)+"% of a)");
+      this.add("ZC2","5-21 min c","wave c is at least 38.2% of wave a (below that it is not a Zigzag)", c>=0.382*a, true, "c = "+pc(c/a)+"% of a");
+      this.cls = c<0.618*a ? "Truncated" : (c<=1.618*a ? "Normal" : "Elongated");
+      this.add("CLS","5-21..22 class","c = "+pc(c/a)+"% of a → "+this.cls+" (Normal 61.8–161.8% · Truncated 38.2–61.8% · Elongated above 161.8%)", true, false, "");
+      if(this.cls==="Truncated"){
+        // after a Truncated Zigzag the market must retrace at least 81% (preferably 100%+) of the whole zigzag; usually it sits in a Triangle
+        const net = Math.abs(P(3)-P(0)), target = P(3)-dir*0.81*net, aft = this.ctx.after || [];
+        let res = null, hit = null;
+        for(const q of aft){ if(dir*q.v<=dir*target){ res = true; hit = q; break; } if(dir*q.v>dir*P(3)){ res = false; hit = q; break; } }
+        this.add("ZT","5-21 Truncated","after a Truncated Zigzag the market retraces at least 81% (preferably 100%+) of the whole zigzag before making a new extreme", res, true,
+          res===true ? "81% level "+f(target)+" reached at "+new Date(hit.t).toISOString().slice(0,10)
+          : res===false ? "price made a new extreme beyond c's end ("+f(hit.v)+") before retracing 81%"
+          : "81% level "+f(target)+" not reached yet in the data",
+          "Truncated Zigzag without the required retracement: it is not truncated; reread as another pattern");
+      }
+      this.add("TRI","5-21","a Truncated Zigzag is usually one of the five legs of a Triangle (or a segment of one)", this.cls==="Truncated" ? null : true, false, this.cls==="Truncated" ? "context test: look at what surrounds it (not coded)" : "not applicable");
+      this.add("535","5-19","a and c are 5-wave moves (impulsive, or a Terminal), b is a 3-wave move", null, false, "needs the inside of each wave: not tested here");
+    }
+  }
+  const api = {Test, Candidate, ImpulseCandidate, ZigzagCandidate};
   if(typeof module!=="undefined" && module.exports) module.exports = api; else root.NEELY5 = api;
 })(typeof window!=="undefined" ? window : globalThis);
 /*NEELY_CH5_END*/
@@ -1642,6 +1680,7 @@ let ndSquares = [];   // [{id,tab,t0,v0,t1,v1}] non-directional squares: start t
 let squareTabs = {}; // {[tab]: true} tabs fitted to Neely's square: start (Neely start) bottom-left, highest point top-right
 let compStore = {}, weakStore = {}, compactMode = false, compactPick = null, compactLevel = 1;
 let impOn = false, impList = [], impSel = -1, impTab = null, impWinTxt = "", impNote = "";
+let zzOn = false, zzList = [], zzSel = -1, zzTab = null, zzWinTxt = "", zzNote = "";
 try{ compStore = JSON.parse(localStorage.getItem("goldCompact_v1")||"{}")||{}; }catch(e){ compStore = {}; }
 try{ weakStore = JSON.parse(localStorage.getItem("goldWeak_v1")||"{}")||{}; }catch(e){ weakStore = {}; }
 const saveComp = ()=>{ try{ localStorage.setItem("goldCompact_v1", JSON.stringify(compStore)); }catch(e){} };
@@ -2452,6 +2491,7 @@ function render(){
   renderList();
   renderHighlightList();
   drawImpulseOverlay();
+  drawZigzagOverlay();
   renderCyanList();
   renderBoxList();
   renderPauseList();
@@ -3234,6 +3274,110 @@ function drawImpulseOverlay(){
     const lx = mx + nx*off*0.7, ly = my + (up ? -off*0.5 : off*0.9);
     g2.appendChild(el("circle",{cx:lx,cy:ly-4,r:10,fill:"var(--panel)",stroke:COL,"stroke-width":1.6,opacity:0.7}));
     const t = el("text",{x:lx,y:ly,"text-anchor":"middle","font-size":13,"font-weight":800,fill:COL,opacity:0.85}); t.textContent = String(k+1); g2.appendChild(t);
+  }
+  svg.appendChild(g2);
+}
+
+// ---------- Zigzag ideas: First / Second best 5-3-5 Zigzag in the visible window (Chapter 5, pp. 5-19 to 5-22), drawn on request ----------
+function zzSearch(){
+  zzNote = "";
+  const rej = rejectedMono[activeTab] || [];
+  const all = pivotSetA();
+  let P = (redOnly && rej.length) ? all.filter(p=>rej.includes(p.t)) : all.slice();
+  P = P.filter(p=>p.t>=xDomain[0] && p.t<=xDomain[1]);
+  zzWinTxt = fmtDate(xDomain[0])+" → "+fmtDate(xDomain[1]);
+  if(P.length<4){ zzNote = "Fewer than 4 pivots in the window."; return []; }
+  let thr = 0, Q = P;
+  for(const t of [0,0.004,0.008,0.012,0.02,0.03,0.045,0.07]){ thr=t; Q = impZigzag(P,t); if(Q.length<=40) break; }
+  if(thr>0) zzNote = "Window has "+P.length+" pivots: counted only swings of "+(thr*100).toFixed(1)+"% or more ("+Q.length+" pivots).";
+  const n = Q.length; if(n<4) return [];
+  let lo=Infinity, hi=-Infinity; Q.forEach(p=>{ if(p.v<lo) lo=p.v; if(p.v>hi) hi=p.v; });
+  const rng = hi-lo, cache = {};
+  const ok = (a,b)=>{ const key=a*100+b; if(cache[key]!==undefined) return cache[key];
+    const l=Math.min(Q[a].v,Q[b].v), h=Math.max(Q[a].v,Q[b].v); let r=true;
+    for(let k=a+1;k<b;k++) if(Q[k].v<l || Q[k].v>h){ r=false; break; }
+    return cache[key]=r; };
+  const found = [];
+  for(const dir of [1,-1]){
+    const u = i=>dir*Q[i].v;
+    for(let i0=0;i0<n-3;i0++) for(let i1=i0+1;i1<n-2;i1++){
+      if(!(u(i1)>u(i0)) || !ok(i0,i1)) continue;
+      const A = u(i1)-u(i0); if(A < 0.10*rng) continue;
+      for(let i2=i1+1;i2<n-1;i2++){
+        const B = u(i1)-u(i2); if(!(B>0) || B<0.01*A || B>0.618*A || !ok(i1,i2)) continue;
+        for(let i3=i2+1;i3<n;i3++){
+          const C = u(i3)-u(i2); if(!(C>0) || C<0.382*A || !ok(i2,i3)) continue;
+          if(found.length<20000) found.push([i0,i1,i2,i3]);
+        }
+      }
+    }
+  }
+  const scored = [];
+  found.forEach(ix=>{
+    const piv = ix.map(i=>({t:Q[i].t, v:Q[i].v}));
+    const prev = ix[0]>0 ? Math.abs(Q[ix[0]].v-Q[ix[0]-1].v) : 0;
+    const after = all.filter(p=>p.t>piv[3].t).map(p=>({t:p.t,v:p.v}));
+    const c = new NEELY5.ZigzagCandidate(piv, 0, all, {prev, after});
+    const fl = c.failed.map(t=>t.id), near = fl.length===1 && fl[0]==="ZC1" && c.gap/c.len(0)<=0.02;
+    if(c.status==="ruled out" && !near) return;
+    const span = Math.abs(piv[3].v-piv[0].v)/rng;
+    let score = Math.min(2, 2*span) + (c.cls==="Normal"?1:c.cls==="Truncated"?0.6:0.3);
+    const za = c.tests.find(t=>t.id==="ZA"); if(za && za.result===true) score += 0.5;
+    if(c.ratioB>=0.382) score += 0.3;
+    if(near) score -= 1; if(c.status==="open") score -= 0.4;
+    scored.push({c, ix, piv, score, near, dirUp: piv[3].v>piv[0].v});
+  });
+  scored.sort((a,b)=>b.score-a.score);
+  const share = (x,y)=>x.ix.filter(i=>y.ix.indexOf(i)>=0).length;
+  const picks = [];
+  scored.forEach(x=>{ if(picks.length>=2) return; if(picks.every(p=>share(x,p)<=1)) picks.push(x); });
+  const tr = scored.find(x=>x.c.cls==="Truncated" && picks.indexOf(x)<0);
+  if(tr) picks.push(tr);
+  picks.forEach((x,k)=>{ x.label = (tr && x===tr && k===picks.length-1) ? "Truncated" : (k===0 ? "1st best" : "2nd best"); });
+  if(!picks.length) zzNote = (zzNote?zzNote+" ":"")+"No 5-3-5 Zigzag in this window passes the hard tests.";
+  return picks;
+}
+function zzRun(){ zzList = zzSearch(); zzSel = zzList.length ? 0 : -1; zzTab = activeTab; renderZzCard(); render(); }
+function renderZzCard(){
+  const card = document.getElementById("zzCard"); if(!card) return;
+  card.hidden = !zzOn; if(!zzOn) return;
+  const pc = x=>Math.round(x*100)+"%";
+  const rows = zzList.map((x,k)=>{
+    const a=x.piv[0], b=x.piv[3], on = zzSel===k, c = x.c;
+    const st = x.near ? ' · <span style="color:#b45309">near miss: c stops '+Math.round(c.gap*10)/10+' short of a</span>' : (c.status==="open" ? ' · <span style="color:#b45309">open</span>' : '');
+    const zt = c.tests.find(t=>t.id==="ZT");
+    return '<div onclick="window.__zzPick('+k+')" style="cursor:pointer;margin:5px 0;padding:5px 7px;border:1px solid '+(on?'#0d9488':'#d4d4d8')+';border-radius:6px;background:'+(on?'#ccfbf1':'transparent')+'">'
+      +'<b style="color:#0f766e">'+x.label+'</b> · '+(x.dirUp?'↑':'↓')+' '+fmtDate(a.t)+' → '+fmtDate(b.t)+' · '+c.cls+st
+      +'<div style="font-size:11px;color:#52525b;margin-top:2px">b = '+pc(c.ratioB)+' of a · c = '+pc(c.ratioC)+' of a'+(zt?' · after: '+zt.note:'')+'</div></div>';
+  }).join("");
+  card.innerHTML = '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><b>Zigzag ideas</b> <span style="font-size:11px;color:#71717a">'+zzWinTxt+'</span>'
+    +'<span><a href="#" onclick="window.__zzRun();return false" title="Search again for the window now on screen">↻</a> &nbsp; <a href="#" onclick="window.__zzClose();return false" title="Close">✕</a></span></div>'
+    + (rows || '<div style="margin:6px 0;color:#71717a">'+(zzNote||"Nothing found.")+'</div>')
+    + (zzList.length && zzNote ? '<div style="font-size:11px;color:#71717a">'+zzNote+'</div>' : '')
+    + '<div style="font-size:11px;color:#71717a;margin-top:4px">Click a row to draw it, click again to remove. Pivots only (no 4-hour data needed): the 5-3-5 inside of the waves and the Triangle around a Truncated one are not tested. "Near miss" = c falls short of the end of a by 2% of a or less (my threshold).</div>';
+}
+window.__zzPick = function(k){ zzSel = (zzSel===k) ? -1 : k; renderZzCard(); render(); };
+window.__zzRun = function(){ zzRun(); };
+window.__zzClose = function(){ zzOn = false; zzSel = -1; document.getElementById("btnZigzag").classList.remove("active"); renderZzCard(); render(); };
+document.getElementById("btnZigzag").addEventListener("click", ()=>{
+  zzOn = !zzOn; document.getElementById("btnZigzag").classList.toggle("active", zzOn);
+  if(zzOn) zzRun(); else { zzSel = -1; renderZzCard(); render(); }
+});
+function drawZigzagOverlay(){
+  if(!zzOn || zzSel<0 || !zzList[zzSel] || zzTab!==activeTab) return;
+  const x = zzList[zzSel], g2 = el("g",{"clip-path":"url(#plotclip)","pointer-events":"none"});
+  const P = x.piv.map(p=>[sx(p.t), sy(p.v)]), COL = "#0d9488", names = ["a","b","c"];
+  g2.appendChild(el("polyline",{points:P.map(q=>q[0]+","+q[1]).join(" "),fill:"none",stroke:COL,"stroke-width":2.6,"stroke-linejoin":"round",opacity:0.4}));
+  // the c-beyond-a test: level of the end of a, carried across to the end of c
+  g2.appendChild(el("line",{x1:P[1][0],y1:P[1][1],x2:P[3][0],y2:P[1][1],stroke:COL,"stroke-width":1.4,"stroke-dasharray":"3 4",opacity:0.55}));
+  const gap = x.c.gap, gtxt = gap<0 ? "c beyond a" : "c short of a by "+Math.round(gap*10)/10;
+  const tx = el("text",{x:P[3][0]+8,y:P[1][1]-5,"font-size":11,"font-weight":700,fill:COL,opacity:0.85,stroke:"var(--panel)","stroke-width":3,"paint-order":"stroke"}); tx.textContent = gtxt+" · "+x.c.cls; g2.appendChild(tx);
+  P.forEach(q=>g2.appendChild(el("circle",{cx:q[0],cy:q[1],r:3.5,fill:COL,opacity:0.55})));
+  for(let k=0;k<3;k++){
+    const a = P[k], b = P[k+1], mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2, up = b[1]<a[1], off = 16;
+    const lx = mx + (up ? -1 : 1)*off*0.7, ly = my + (up ? -off*0.5 : off*0.9);
+    g2.appendChild(el("circle",{cx:lx,cy:ly-4,r:10,fill:"var(--panel)",stroke:COL,"stroke-width":1.6,opacity:0.7}));
+    const t = el("text",{x:lx,y:ly,"text-anchor":"middle","font-size":13,"font-weight":800,fill:COL,opacity:0.85}); t.textContent = names[k]; g2.appendChild(t);
   }
   svg.appendChild(g2);
 }
