@@ -179,7 +179,8 @@ body.embed{padding-left:8px; padding-right:8px;}
           </div>
           <div class="tg" data-g="count"><span class="tg-l">Count</span>
             <button id="btnCyan" title="Intra-wave (cyan): click two pivots to trace a sub-wave">1·2·3</button>
-            <button id="btnDZigzag" title="DZigzag: click pivots in sequence, labels A B C X repeat">DZ</button>
+            <button id="btnDZ2" title="Double Zigzag: click 8 pivots, labels A B C X A B C (one X), ends by itself">DZ</button>
+            <button id="btnDZigzag" title="Triple Zigzag (open-ended): click pivots in sequence, labels A B C X repeat; click the button again to end the run">TZ</button>
             <button id="btnWxy" title="ZigZag W-X-Y: click 4 pivots">WXY</button>
             <button id="btnTriangle" title="Triangle A-B-C-D-E: click 6 pivots">ABCDE</button>
             <button id="btnFlat" title="Flat A-B-C: click 4 pivots">ABC</button>
@@ -1802,6 +1803,7 @@ const LABEL_SEQUENCES = {
   wxy:      ["W","X","Y"],         // a single zigzag/pattern used as a combination connector
   triangle: ["A","B","C","D","E"], // 5-legged contracting/expanding triangle
   flat:     ["A","B","C"],         // simple flat
+  dz:       ["A","B","C","X","A","B","C"], // Double Zigzag: two zigzags joined by one X
 };
 let seqIdx = 0; // which label comes next for the active LABEL_SEQUENCES mode
 let boxes=[]; // {id, t1, t2, label} — slidable/duplicable duration windows
@@ -2808,6 +2810,7 @@ const btnDZigzag = document.getElementById("btnDZigzag");
 const btnWxy = document.getElementById("btnWxy");
 const btnTriangle = document.getElementById("btnTriangle");
 const btnFlat = document.getElementById("btnFlat");
+const btnDZ2 = document.getElementById("btnDZ2");
 const btnBox = document.getElementById("btnBox");
 const btnPause = document.getElementById("btnPause");
 const btnLevel = document.getElementById("btnLevel");
@@ -2845,6 +2848,7 @@ function updateToolState(){
   btnWxy.classList.toggle("active", mode==="wxy");
   btnTriangle.classList.toggle("active", mode==="triangle");
   btnFlat.classList.toggle("active", mode==="flat");
+  btnDZ2.classList.toggle("active", mode==="dz");
   btnBox.classList.toggle("active", mode==="box");
   btnPause.classList.toggle("active", mode==="pause");
   btnLevel.classList.toggle("active", mode==="level");
@@ -2862,7 +2866,7 @@ function updateToolState(){
   else if(mode==="parallel") hintText.innerHTML = "<b>Click a pivot</b> the parallel line should pass through.";
   else if(mode==="highlight") hintText.innerHTML = pendingPoint? "<b>Click the second pivot</b> to finish highlighting that leg." : "<b>Click a pivot</b> to start highlighting a wave's real price path.";
   else if(mode==="cyan") hintText.innerHTML = pendingPoint? "<b>Click the second pivot</b> to finish this intra-wave segment (cyan)." : "<b>Click a pivot</b> to start marking a sub-wave (1, 2, 3...) — label it in the panel after.";
-  else if(mode==="dzigzag") hintText.innerHTML = "<b>Click pivots in sequence</b> — each segment auto-labels A, B, C, X, repeating for as many zigzags as you chain (double, triple...). Next label: <b>"+DZIGZAG_SEQ[dzigzagIdx % DZIGZAG_SEQ.length]+"</b>. Click the button again to end the run.";
+  else if(mode==="dzigzag") hintText.innerHTML = "<b>Click pivots in sequence</b> — each segment auto-labels A, B, C, X, repeating for as many zigzags as you chain (triple and longer; the DZ button does exactly one double). Next label: <b>"+DZIGZAG_SEQ[dzigzagIdx % DZIGZAG_SEQ.length]+"</b>. Click the button again to end the run.";
   else if(LABEL_SEQUENCES[mode]) hintText.innerHTML = "<b>Click pivots in sequence</b> — labels: "+LABEL_SEQUENCES[mode].join(", ")+". Next label: <b>"+(LABEL_SEQUENCES[mode][seqIdx]||"(done)")+"</b>. Ends automatically after the last one.";
   else if(mode==="box") hintText.innerHTML = "<b>Drag</b> across the chart to draw a duration box.";
   else if(mode==="pause") hintText.innerHTML = "<b>Drag</b> a rectangle over a pause/consolidation — bounded in both price and time, unlike the full-height duration box.";
@@ -2874,7 +2878,7 @@ function updateToolState(){
   else if(mode==="forecast") hintText.innerHTML = "<b>Click anywhere</b> on the chart to drop grey forecast pivots in sequence — the path starts at the last validated (red) pivot. Click the button again to stop; Undo or Clear to remove.";
   else if(mode==="reject") hintText.innerHTML = "<b>Click a monowave dot</b> to flag it invalid (turns red) — click again to restore it. Walk through them left to right and validate the raw reduction by eye.";
   else if(mode==="pan") hintText.innerHTML = "<b>Drag</b> to shift the date range. Scroll still zooms.";
-  else hintText.innerHTML = '<b>New trendline:</b> click a pivot dot, then a second — drag either handle to extend. <b>Highlight wave</b> traces the real price path of one leg in a hot color. <b>Duration box</b> drags out a time window you can duplicate and slide onto other legs to compare how fast they formed. <b>Pause box</b> drags a price-and-time rectangle over a consolidation. <b>Price level</b> drops a horizontal watch line at an exact price. <b>Mark pivot</b> drops a single yellow marker on a pivot dot. <b>Validate monowaves</b> turns a raw monowave dot red to flag it invalid. The <b>Elliott Analysis</b> group below auto-labels chained segments: <b>Intra-wave (cyan)</b> chains unlabeled sub-waves; <b>DZigzag</b> cycles A, B, C, X indefinitely for a double/triple zigzag combination; <b>ZigZag (W-X-Y)</b>, <b>Triangle (A-B-C-D-E)</b> and <b>Flat (A-B-C)</b> each run once through their fixed template and stop. All of these are tab-specific — what you draw on Daily stays on Daily, intraday tabs get their own independent set. <b>Scroll</b> to zoom, drag with Pan on to shift.';
+  else hintText.innerHTML = '<b>New trendline:</b> click a pivot dot, then a second — drag either handle to extend. <b>Highlight wave</b> traces the real price path of one leg in a hot color. <b>Duration box</b> drags out a time window you can duplicate and slide onto other legs to compare how fast they formed. <b>Pause box</b> drags a price-and-time rectangle over a consolidation. <b>Price level</b> drops a horizontal watch line at an exact price. <b>Mark pivot</b> drops a single yellow marker on a pivot dot. <b>Validate monowaves</b> turns a raw monowave dot red to flag it invalid. The <b>Elliott Analysis</b> group below auto-labels chained segments: <b>Intra-wave (cyan)</b> chains unlabeled sub-waves; <b>TZ</b> cycles A, B, C, X indefinitely (triple zigzag and longer), <b>DZ</b> runs A-B-C, X, A-B-C once (double zigzag); <b>ZigZag (W-X-Y)</b>, <b>Triangle (A-B-C-D-E)</b> and <b>Flat (A-B-C)</b> each run once through their fixed template and stop. All of these are tab-specific — what you draw on Daily stays on Daily, intraday tabs get their own independent set. <b>Scroll</b> to zoom, drag with Pan on to shift.';
 }
 
 btnTrend.addEventListener("click", ()=>{
@@ -2912,6 +2916,7 @@ function toggleSeqMode(name){
 btnWxy.addEventListener("click", ()=> toggleSeqMode("wxy"));
 btnTriangle.addEventListener("click", ()=> toggleSeqMode("triangle"));
 btnFlat.addEventListener("click", ()=> toggleSeqMode("flat"));
+btnDZ2.addEventListener("click", ()=> toggleSeqMode("dz"));
 btnBox.addEventListener("click", ()=>{
   mode = mode==="box" ? "idle" : "box";
   pendingPoint = null;
