@@ -221,7 +221,7 @@ body.embed{padding-left:8px; padding-right:8px;}
           <label class="toggle" id="pivALabelWrap"><input type="checkbox" id="toggle3" checked><span class="dot" style="background:var(--p3)"></span><span id="pivALabel">3% pivots</span></label>
           <label class="toggle" id="pivBLabelWrap" style="display:none"><input type="checkbox" id="toggle5" checked><span class="dot" style="background:var(--p5)"></span><span id="pivBLabel">5% pivots</span></label>
           <label class="toggle" id="ruleTagWrap" title="Neely Chapter 3: Retracement Rule of every monowave (m2/m1 and m0/m1 found with the Rules of Observation), e.g. R-2a. RN = Rule of Neutrality candidate (flatter than 45° on a square-fitted chart)"><input type="checkbox" id="toggleRules"><span class="dot" style="background:#92400e"></span><span>Rules (Ch.3)</span></label>
-          <label class="toggle" id="ruleLabWrap" title="Show the Pre-Constructive Structure labels (Rules 2 and 5 coded) next to each R-tag"><input type="checkbox" id="toggleRuleLab"><span>labels</span></label>
+          <label class="toggle" id="sizeWrap" title="Write the size of each wave, in points (no decimals), at the middle of its leg. Uses your red (validated) pivots when you have them, otherwise every dot"><input type="checkbox" id="toggleSize"><span>size</span></label>
           <label class="toggle" id="rnWrap" title="Rule of Neutrality, automatic: finds sideways periods (inside the 45-degree cone of the square-fitted chart), classes them Aspect 1 or 2 and shows what to do"><input type="checkbox" id="toggleRN"><span>RN auto</span></label>
           <select id="rnA2" title="what to do with Aspect 2 periods when you press apply" style="font-size:12px"><option value="three">A2: three segments</option><option value="merge">A2: one monowave</option><option value="skip">A2: skip</option></select>
           <button type="button" id="btnRNUndo" class="toggle" style="cursor:pointer" title="Restore the red pivots as they were before the last apply RN">undo RN</button>
@@ -1720,6 +1720,7 @@ try{ compStore = JSON.parse(localStorage.getItem("goldCompact_v1")||"{}")||{}; }
 try{ weakStore = JSON.parse(localStorage.getItem("goldWeak_v1")||"{}")||{}; }catch(e){ weakStore = {}; }
 const saveComp = ()=>{ try{ localStorage.setItem("goldCompact_v1", JSON.stringify(compStore)); }catch(e){} };
 const saveWeak = ()=>{ try{ localStorage.setItem("goldWeak_v1", JSON.stringify(weakStore)); }catch(e){} };
+let showSize = false;
 let showPI = false, showRN = false, rnSuggest = [], showRulesFlag = false, showRuleLab = false, ruleMinPct = 0;
 let yOverride = {};  // {[tab]: [lo,hi]} fixed price range while the square fit is on (not saved)
 let ray45Tabs = {}; // {[tab]: true} tabs showing the 45-degree ray from the Neely start (26-Sep-2022, 1632.15)
@@ -2527,6 +2528,7 @@ function render(){
   renderList();
   renderHighlightList();
   drawImpulseOverlay();
+  drawWaveSizes();
   drawZigzagOverlay();
   renderDzCard();
   renderCyanList();
@@ -3455,6 +3457,25 @@ function renderDzCard(){
 }
 window.__dzClose = function(){ dzHideAt = cyanHighlights.length; renderDzCard(); };
 
+// ---------- wave sizes: the size of every wave (pivot to pivot) in points, written at the middle of its leg ----------
+function drawWaveSizes(){
+  if(!showSize) return;
+  const rejectableTab = ["weekly","monthly","daily","twoday","twowk","quarterly","halfyear","yearly","yearlyreal","twoyr","intraday","intraday4h"].indexOf(activeTab)>=0;
+  const redBase = rejectableTab ? pivotSetA().filter(p=>(rejectedMono[activeTab]||[]).includes(p.t)) : [];
+  const useRed = rejectableTab && (redOnly || redBase.length>=3);
+  const src = (useRed ? redBase : pivotSetA()).slice().sort((a,b)=>a.t-b.t);
+  const g2 = el("g",{"clip-path":"url(#plotclip)","pointer-events":"none"}); let n = 0;
+  for(let i=0;i<src.length-1 && n<500;i++){
+    const a = src[i], b = src[i+1];
+    if(b.t<xDomain[0] || a.t>xDomain[1]) continue;
+    const x1=sx(a.t), y1=sy(a.v), x2=sx(b.t), y2=sy(b.v), up = b.v>a.v;
+    const tx = el("text",{x:(x1+x2)/2 + (up ? -13 : 13), y:(y1+y2)/2 + 4,"text-anchor":"middle","font-size":11,"font-weight":700,fill:"#7c2d12",
+      stroke:"var(--panel)","stroke-width":3,"paint-order":"stroke"});
+    tx.textContent = String(Math.round(Math.abs(b.v-a.v))); g2.appendChild(tx); n++;
+  }
+  svg.appendChild(g2);
+}
+
 function setCompactLevel(L){
   if(compactMode && compactLevel===L) compactMode = false; else { compactMode = true; compactLevel = L; }
   compactPick = null;
@@ -3491,7 +3512,7 @@ window.__fixRed = function(){
   rejectedMono[activeTab] = (rejectedMono[activeTab]||[]).filter(t=>!del.has(t));
   saveState(); render();
 };
-document.getElementById("toggleRuleLab").addEventListener("change", e=>{ showRuleLab = e.target.checked; render(); });
+document.getElementById("toggleSize").addEventListener("change", e=>{ showSize = e.target.checked; render(); });
 document.getElementById("ruleMin").addEventListener("input", e=>{ ruleMinPct = +e.target.value; document.getElementById("ruleMinVal").textContent = ruleMinPct+"%"; render(); });
 
 // the monthly starting-point candidate (Feb 2025, center of the full 2001-2026 range) —
