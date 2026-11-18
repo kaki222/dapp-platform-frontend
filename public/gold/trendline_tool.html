@@ -3563,10 +3563,14 @@ function zzSearch(){
   if(!picks.length) zzNote = (zzNote?zzNote+" ":"")+"No 5-3-5 Zigzag in this window passes the hard tests.";
   return picks;
 }
-function zzRun(){ zzList = zzSearch(); zzSel = zzList.length ? 0 : -1; zzTab = activeTab; renderZzCard(); render(); }
+let zzMin = false;
+function zzRun(){ zzList = zzSearch(); zzSel = zzList.length ? 0 : -1; zzTab = activeTab; zzMin = false; renderZzCard(); render(); }
 function renderZzCard(){
   const card = document.getElementById("zzCard"); if(!card) return;
   card.hidden = !zzOn; if(!zzOn) return;
+  if(zzMin){ const xs = zzSel>=0 && zzList[zzSel];
+    card.innerHTML = '<div style="display:flex;justify-content:space-between;gap:14px;align-items:center"><span><b>Zigzag</b> · '+(xs ? xs.label+' drawn' : zzList.length+' idea(s)')+'</span><span><a href="#" onclick="window.__zzMin();return false" title="Show the list again">show ▾</a> &nbsp; <a href="#" onclick="window.__zzClose();return false" title="Close and clear the drawing">✕</a></span></div>';
+    return; }
   const pc = x=>Math.round(x*100)+"%";
   const rows = zzList.map((x,k)=>{
     const a=x.piv[0], b=x.piv[3], on = zzSel===k, c = x.c;
@@ -3577,12 +3581,13 @@ function renderZzCard(){
       +'<div style="font-size:11px;color:#52525b;margin-top:2px">b = '+pc(c.ratioB)+' of a · c = '+pc(c.ratioC)+' of a'+(zt?' · after: '+zt.note:'')+'</div></div>';
   }).join("");
   card.innerHTML = '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><b>Zigzag ideas</b> <span style="font-size:11px;color:#71717a">'+zzWinTxt+'</span>'
-    +'<span><a href="#" onclick="window.__zzRun();return false" title="Search again for the window now on screen">↻</a> &nbsp; <a href="#" onclick="window.__zzClose();return false" title="Close">✕</a></span></div>'
+    +'<span><a href="#" onclick="window.__zzMin();return false" title="Fold the window away (the drawing stays)">hide ▴</a> &nbsp; <a href="#" onclick="window.__zzRun();return false" title="Search again for the window now on screen">↻</a> &nbsp; <a href="#" onclick="window.__zzClose();return false" title="Close">✕</a></span></div>'
     + (rows || '<div style="margin:6px 0;color:#71717a">'+(zzNote||"Nothing found.")+'</div>')
     + (zzList.length && zzNote ? '<div style="font-size:11px;color:#71717a">'+zzNote+'</div>' : '')
     + '<div style="font-size:11px;color:#71717a;margin-top:4px">Click a row to draw it, click again to remove. Pivots only (no 4-hour data needed): the 5-3-5 inside of the waves and the Triangle around a Truncated one are not tested. "Near miss" = c falls short of the end of a by 2% of a or less (my threshold).</div>';
 }
-window.__zzPick = function(k){ zzSel = (zzSel===k) ? -1 : k; renderZzCard(); render(); };
+window.__zzPick = function(k){ zzSel = (zzSel===k) ? -1 : k; if(zzSel>=0) zzMin = true; renderZzCard(); render(); };
+window.__zzMin = function(){ zzMin = !zzMin; renderZzCard(); };
 window.__zzRun = function(){ zzRun(); };
 window.__zzClose = function(){ zzOn = false; zzSel = -1; document.getElementById("btnZigzag").classList.remove("active"); renderZzCard(); render(); };
 document.getElementById("btnZigzag").addEventListener("click", ()=>{
@@ -3610,7 +3615,7 @@ function drawZigzagOverlay(){
 }
 
 // ---------- Double / Triple Zigzag check: any chain A-B-C-X-A-B-C[-X-A-B-C...] drawn with the DZ or TZ tool is tested against Chapter 5 (each zigzag) and Chapter 8 (x-wave, similarity) ----------
-let dzHideAt = -1;
+let dzHideAt = -1, dzMin = true;   // the drawn-chain check starts folded to one line; click show to open it
 function dzChains(){
   const H = cyanHighlights.filter(h=>h.tab===activeTab), runs = []; let cur = [];
   H.forEach(h=>{ const l = cur[cur.length-1]; if(l && (l.t2!==h.t1 || l.v2!==h.v1)){ runs.push(cur); cur = []; } cur.push(h); });
@@ -3632,13 +3637,14 @@ function renderDzCard(){
   const chains = dzChains(); const n = cyanHighlights.length;
   if(!chains.length || dzHideAt===n){ card.hidden = true; return; }
   const all = pivotSetA(), mark = r=>r===true?'<span style="color:#15803d">✔</span>':r===false?'<span style="color:#b91c1c">✘</span>':'<span style="color:#b45309">?</span>';
-  card.innerHTML = '<div style="display:flex;justify-content:space-between;gap:10px"><b>Zigzag combination check</b><a href="#" onclick="window.__dzClose();return false" title="Hide until you draw something else">✕</a></div>' + chains.map(ch=>{
+  card.innerHTML = (dzMin ? '' : '<div style="display:flex;justify-content:space-between;gap:10px"><b>Zigzag combination check</b><span><a href="#" onclick="window.__dzMin();return false" title="Fold away">hide ▴</a> &nbsp; <a href="#" onclick="window.__dzClose();return false" title="Hide until you draw something else">✕</a></span></div>') + chains.map(ch=>{
     const after = all.filter(p=>p.t>ch.piv[ch.piv.length-1].t).map(p=>({t:p.t,v:p.v}));
     let c;
     if(ch.mode==="tc"){ const cz = new NEELY5.TripleComboCandidate(ch.piv,"zz",all,after), cf = new NEELY5.TripleComboCandidate(ch.piv,"flat",all,after); c = (cz.status!=="ruled out" || cf.status==="ruled out") ? cz : cf; }
     else if(ch.mode==="dc") c = new NEELY5.ComboCandidate(ch.piv,["zz","tri"],all,after);
     else c = new NEELY5.MultiZigzagCandidate(ch.piv, ch.n, all, after);
     const col = c.status==="alive" ? "#15803d" : c.status==="open" ? "#b45309" : "#b91c1c";
+    if(dzMin) return '<div style="display:flex;justify-content:space-between;gap:14px;align-items:center"><span><b>'+c.kind+'</b> · <b style="color:'+col+'">'+c.status.toUpperCase()+'</b></span><span><a href="#" onclick="window.__dzMin();return false" title="Show the tests">show ▾</a> &nbsp; <a href="#" onclick="window.__dzClose();return false" title="Hide until you draw something else">✕</a></span></div>';
     return '<div style="margin:6px 0 2px"><b>'+c.kind+'</b> · '+fmtDate(ch.piv[0].t)+' → '+fmtDate(ch.piv[ch.piv.length-1].t)+' · <b style="color:'+col+'">'+c.status.toUpperCase()+'</b></div>'
       + c.tests.map(t=>'<div style="margin:2px 0;font-size:11.5px">'+mark(t.result)+' <b>'+t.rule+'</b> '+t.text+'<div style="color:#52525b;margin-left:16px">'+t.note+(t.result===false&&t.implies?' → '+t.implies:'')+'</div></div>').join("")
       + '<div style="font-size:11px;color:#71717a;margin-top:3px">A pivot-level test only; thresholds are the book\'s (x < 61.8%, similarity 1/3, zigzag and triangle limits). The inside of each wave is not tested. Channel and thrust lines are soft (p. 12-18/19, p. 5-27).</div>';
@@ -3646,6 +3652,7 @@ function renderDzCard(){
   card.hidden = false;
 }
 window.__dzClose = function(){ dzHideAt = cyanHighlights.length; renderDzCard(); };
+window.__dzMin = function(){ dzMin = !dzMin; renderDzCard(); };
 
 // ---------- wave sizes: the size of every wave (pivot to pivot) in points, written at the middle of its leg ----------
 function drawWaveSizes(){
@@ -3670,7 +3677,7 @@ function drawWaveSizes(){
 }
 
 // ---------- DZigzag? / DCombo?: Double Zigzag, Double Flat and Double Combination ideas in the visible window (Chapter 8 Table A rows 1-5 on Chapter 5 parts) ----------
-let cbOn = null, cbList = [], cbSel = -1, cbTab = null, cbWin = "", cbNote = "", cbDet = false;
+let cbOn = null, cbList = [], cbSel = -1, cbTab = null, cbWin = "", cbNote = "", cbDet = false, cbMin = false;
 function ideaPool(maxPiv){
   const rej = rejectedMono[activeTab] || [];
   const all = pivotSetA();
@@ -3790,10 +3797,15 @@ function cbSearch(mode){
     if(miss.length) cbNote = (cbNote?cbNote+" ":"")+"Nothing survives the hard tests for "+miss.join(", ")+"."; }
   return picks;
 }
-function cbRun(){ cbList = cbSearch(cbOn); cbSel = cbList.length ? 0 : -1; cbTab = activeTab; renderCbCard(); render(); }
+function cbRun(){ cbList = cbSearch(cbOn); cbSel = cbList.length ? 0 : -1; cbTab = activeTab; cbMin = false; renderCbCard(); render(); }
 function renderCbCard(){
   const card = document.getElementById("cbCard"); if(!card) return;
   card.hidden = !cbOn; if(!cbOn) return;
+  if(cbMin){   // folded away: one slim line, the drawing stays on the chart
+    const xs = cbSel>=0 && cbList[cbSel];
+    card.innerHTML = '<div style="display:flex;justify-content:space-between;gap:14px;align-items:center"><span><b>'+(cbOn==="dz"?"DZigzag":"DCombo")+'</b> · '+(xs ? xs.label+' drawn' : cbList.length+' idea(s)')+'</span><span><a href="#" onclick="window.__cbMin();return false" title="Show the list again">show ▾</a> &nbsp; <a href="#" onclick="window.__cbClose();return false" title="Close and clear the drawing">✕</a></span></div>';
+    return;
+  }
   const mark = r=>r===true?'<span style="color:#15803d">✔</span>':r===false?'<span style="color:#b91c1c">✘</span>':'<span style="color:#b45309">?</span>';
   const pc = x=>Math.round(x*100)+"%";
   const rows = cbList.map((x,k)=>{
@@ -3811,15 +3823,16 @@ function renderCbCard(){
       + (c.channel ? '<div style="margin:3px 0 1px;font-size:11.5px"><b>Channel and thrust (soft: they rank, they do not rule out)</b></div>' + c.tests.filter(t=>["CH1","CH2","THC"].indexOf(t.id)>=0).map(t=>'<div style="margin:1px 0;font-size:11px">'+mark(t.result)+' '+t.text+'<span style="color:#52525b"> — '+t.note+'</span></div>').join("") : "") + '</div>';
   }
   card.innerHTML = '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><b>'+(cbOn==="dz"?"DZigzag ideas":"DCombo ideas")+'</b> <span style="font-size:11px;color:#71717a">'+cbWin+'</span>'
-    +'<span><a href="#" onclick="window.__cbDet();return false" title="Show or hide the test list of the selected row">'+(cbDet?'details ▴':'details ▾')+'</a> &nbsp; <a href="#" onclick="window.__cbRun();return false" title="Search again for the window now on screen">↻</a> &nbsp; <a href="#" onclick="window.__cbClose();return false" title="Close">✕</a></span></div>'
+    +'<span><a href="#" onclick="window.__cbMin();return false" title="Fold the window away (the drawing stays)">hide ▴</a> &nbsp; <a href="#" onclick="window.__cbDet();return false" title="Show or hide the test list of the selected row">'+(cbDet?'details ▴':'details ▾')+'</a> &nbsp; <a href="#" onclick="window.__cbRun();return false" title="Search again for the window now on screen">↻</a> &nbsp; <a href="#" onclick="window.__cbClose();return false" title="Close">✕</a></span></div>'
     + (rows || '<div style="margin:6px 0;color:#71717a">'+(cbNote||"Nothing found.")+'</div>')
     + (cbList.length && cbNote ? '<div style="font-size:11px;color:#71717a">'+cbNote+'</div>' : '') + det
     + '<div style="font-size:11px;color:#71717a;margin-top:5px">Click a row to draw it, click again to remove. Pivots only: the 5-3-5 / 3-3-5 / 3-3-3-3-3 inside of the waves is not tested. Triangle trendlines use straight value (not log). Similarity (1/3 of price or time) is applied to neighbouring parts. Rows 7-8: the base-line channel (p. 12-18/19) and the thrust (p. 5-27) are soft tests, they rank and do not rule out.</div>';
 }
-window.__cbPick = function(k){ cbSel = (cbSel===k) ? -1 : k; renderCbCard(); render(); };
+window.__cbPick = function(k){ cbSel = (cbSel===k) ? -1 : k; if(cbSel>=0) cbMin = true; renderCbCard(); render(); };
+window.__cbMin = function(){ cbMin = !cbMin; renderCbCard(); };
 window.__cbRun = function(){ cbRun(); };
 window.__cbDet = function(){ cbDet = !cbDet; renderCbCard(); };
-window.__cbClose = function(){ cbOn = null; cbSel = -1; ["btnDZI","btnDCI"].forEach(id=>document.getElementById(id).classList.remove("active")); renderCbCard(); render(); };
+window.__cbClose = function(){ cbOn = null; cbSel = -1; cbMin = false; ["btnDZI","btnDCI"].forEach(id=>document.getElementById(id).classList.remove("active")); renderCbCard(); render(); };
 function cbToggle(mode){
   if(cbOn===mode){ window.__cbClose(); return; }
   if(zzOn) window.__zzClose();
