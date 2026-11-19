@@ -4428,6 +4428,29 @@ window.addEventListener("mousemove", drawCrosshair);
 svg.addEventListener("mouseleave", removeCrosshair);
 
 if(__EMBED) xDomain = defaultDomainFor(activeTab);
+// ---- split-screen linking hooks (used by the parent window; same-origin iframes) ----
+window.__getX = function(){ return [xDomain[0], xDomain[1]]; };
+window.__setX = function(d){ if(!d||!(d[1]>d[0])) return; xDomain = [d[0], d[1]]; render(); if(window.__ghostT!=null) window.__setGhost(window.__ghostT); };
+window.__ghostT = null;
+window.__setGhost = function(t){
+  window.__ghostT = t;
+  const old = svg.querySelector("#ghostLayer"); if(old) old.remove();
+  if(t==null || t<xDomain[0] || t>xDomain[1]) return;
+  const x = sx(t), g = el("g",{id:"ghostLayer","pointer-events":"none"});
+  g.appendChild(el("line",{x1:x,x2:x,y1:plot.y,y2:plot.y+plot.h,stroke:"var(--accent)","stroke-width":1,"stroke-dasharray":"5 4",opacity:.85}));
+  const tx = fmtDate(t), w = 14+tx.length*6.2, bx = Math.max(plot.x+2, Math.min(plot.x+plot.w-w-2, x-w/2));
+  g.appendChild(el("rect",{x:bx,y:plot.y+2,width:w,height:17,rx:4,fill:"var(--accent)",opacity:.9}));
+  const tt = el("text",{x:bx+7,y:plot.y+14,"font-size":11,fill:"#fff"}); tt.textContent = tx; g.appendChild(tt);
+  svg.appendChild(g);
+};
+if(__EMBED){
+  window.addEventListener("mousemove", evt=>{
+    try{ const p = svgPoint(evt);
+      const inside = !(p.x<plot.x || p.x>plot.x+plot.w || p.y<plot.y || p.y>plot.y+plot.h);
+      window.parent.__xhair(window.frameElement, inside ? invX(p.x) : null); }catch(e){}
+  });
+  svg.addEventListener("mouseleave", ()=>{ try{ window.parent.__xhair(window.frameElement, null); }catch(e){} });
+}
 
 // ---- right-click: a tiny symbol-only menu, depends on what is under the cursor ----
 let ctxEl = null;
@@ -4568,7 +4591,7 @@ btnBig.addEventListener("click", ()=>{
 });
 const splitWrap = document.getElementById("splitWrap");
 const chartrow = document.getElementById("chartrow");
-let splitBuilt = false, splitStack = false, splitOn = false, focusPane = null, mirrorTimer = null;
+let splitBuilt = false, splitStack = false, splitOn = false, focusPane = null, mirrorTimer = null, splitLink = false, linkTimer = null, lastLinkX = null;
 const TAB_NAMES = {weekly:"Weekly", twoday:"2.5-Daily", twowk:"2.5-Weekly", quarterly:"3-Monthly", halfyear:"6-Monthly", yearly:"Yearly", yearlyreal:"Yearly (real)", twoyr:"2.5-Yearly (real)", intraday:"12h", intraday4h:"4h", monthly:"Monthly", daily:"Daily"};
 function mkFrame(tab){
   const f = document.createElement("iframe");
@@ -4603,21 +4626,64 @@ window.__focusPane = function(frameEl){
   const p = frameEl && frameEl.closest && frameEl.closest(".pane");
   if(p && p!==focusPane) setFocus(p);
 };
-function buildSplit(){
+// linked time axis: whichever pane's x-range moved since the last tick drives the other
+function frameOf(p){ try{ return p.querySelector("iframe").contentWindow; }catch(e){ return null; } }
+function linkTick(){
+  if(!splitOn || !splitLink) return;
+  const ps = [...splitWrap.querySelectorAll(".pane")]; if(ps.length<2) return;
+  const ws = ps.map(frameOf); if(ws.some(w=>!w||!w.__getX)) return;
+  const xs = ws.map(w=>w.__getX());
+  if(!lastLinkX){ lastLinkX = xs.map(x=>x.slice()); return; }
+  const ch = xs.map((x,i)=> x[0]!==lastLinkX[i][0] || x[1]!==lastLinkX[i][1]);
+  let lead = ch.indexOf(true); if(lead<0) return;
+  if(ch[0]&&ch[1]) lead = (ps[0]===focusPane) ? 0 : 1;
+  ws.forEach((w,i)=>{ if(i!==lead) w.__setX(xs[lead]); });
+  lastLinkX = ws.map(w=>w.__getX());
+}
+// crosshair of one pane shows as a dashed date line in the other
+window.__xhair = function(frameEl, t){
+  if(!splitOn) return;
+  splitWrap.querySelectorAll(".pane").forEach(p=>{
+    const f = p.querySelector("iframe"); if(f===frameEl) return;
+    try{ if(f.contentWindow.__setGhost) f.contentWindow.__setGhost(t); }catch(e){}
+  });
+};
+function setLink(on){
+  splitLink = on; lastLinkX = null;
+  const b = document.getElementById("btnSplitLink"); if(b){ b.classList.toggle("active", on); }
+  clearInterval(linkTimer); if(on) linkTimer = setInterval(linkTick, 200);
+}
+function buildSplit(tabs){
+  tabs = tabs || ["twoday","intraday"];
   splitWrap.innerHTML = "";
   const bar = document.createElement("div"); bar.className = "splitbar";
   const bLay = document.createElement("button"); bLay.textContent = "⇅"; bLay.title = "Stack / side by side";
   const bMerge = document.createElement("button"); bMerge.textContent = "⧉"; bMerge.title = "Merge back to one window";
-  bar.appendChild(bLay); bar.appendChild(bMerge);
+  const bLink = document.createElement("button"); bLink.id = "btnSplitLink"; bLink.textContent = "⛓"; bLink.title = "Link the time axis of both panes (pan/zoom one, the other follows)";
+  const bYM = document.createElement("button"); bYM.textContent = "Y|M"; bYM.style.width = "auto"; bYM.style.padding = "0 8px"; bYM.style.fontSize = ".8rem";
+  bYM.title = "Yearly (real) above Monthly, stacked, time axis linked, same window 2000–2027";
+  bar.appendChild(bYM); bar.appendChild(bLink); bar.appendChild(bLay); bar.appendChild(bMerge);
   const grid = document.createElement("div"); grid.className = "splitgrid"+(splitStack?" stack":"");
-  ["twoday","intraday"].forEach(tab=>{
+  tabs.forEach(tab=>{
     const p = document.createElement("div"); p.className = "pane";
     p.appendChild(mkFrame(tab));
     const bd = document.createElement("div"); bd.className = "pbadge"; bd.textContent = "○ "+TAB_NAMES[tab]; p.appendChild(bd);
     grid.appendChild(p);
   });
   bLay.addEventListener("click", ()=>{ splitStack = !splitStack; grid.classList.toggle("stack", splitStack); });
+  bLink.addEventListener("click", ()=> setLink(!splitLink));
+  bYM.addEventListener("click", ()=>{
+    splitStack = true; buildSplit(["yearlyreal","monthly"]); setLink(true);
+    setFocus(splitWrap.querySelector(".pane"));
+    const frames = [...splitWrap.querySelectorAll("iframe")]; let n = 0;
+    frames.forEach(f=> f.addEventListener("load", ()=>{
+      if(++n<frames.length) return;
+      const d = [Date.UTC(2000,0,1), Date.UTC(2027,6,1)];
+      frames.forEach(fr=>{ try{ fr.contentWindow.__setX(d); }catch(e){} }); lastLinkX = null;
+    }));
+  });
   bMerge.addEventListener("click", ()=> setSplit(false));
+  if(splitStack) grid.classList.add("stack");
   splitWrap.appendChild(bar); splitWrap.appendChild(grid);
   splitBuilt = true;
 }
@@ -4630,6 +4696,7 @@ function setSplit(on){
   btnSplit.textContent = on ? "⧉" : "◫";
   btnSplit.title = on ? "Merge back to one window" : "Split screen: study two timeframes at once";
   clearInterval(mirrorTimer);
+  if(!on) setLink(false);
   if(on){
     setFocus(splitWrap.querySelector(".pane"));
     mirrorTimer = setInterval(mirror, 500);
