@@ -1814,14 +1814,14 @@ const NEELY3 = (function(){
       const dv = [8,9,10,11,12,13].map(k=>dev(P[k])), nb = dv.slice(1).filter(v=>v<-tol).length, deep = Math.min.apply(null,dv.slice(1)), endIn = dv[5]>=-tol;
       this.add("CH2","12-18/19 false break","the last Triangle segments break the base line at least once and finish back inside (a \"false\" break)", nb>0 && endIn, false,
         nb+" of the 5 Triangle pivots lie beyond the base line (deepest "+pc(Math.exp(-deep)-1)+"% beyond it at its widest) · end of e is "+(endIn ? "back inside" : pc(Math.exp(-dv[5])-1)+"% beyond the line")+(dv[0]<-tol ? " · the end of x2 is already beyond it" : "")+" · base line through 0 and the "+(ia===4?"first x-wave":"b-waves")+" extended, log scale");
-      // ---- thrust after the Triangle (p. 5-27): at least 75% of its widest wave (normally up to 125%) and past its extreme; direction taken as against the combination (my reading) ----
+      // ---- thrust after the Triangle (p. 5-27): at least 75% of its widest wave and past its extreme (no upper limit for a Non-Limiting Triangle); direction taken as against the combination (my reading) ----
       const widest = Math.max.apply(null,[0,1,2,3,4].map(k=>Math.abs(P[9+k].v-P[8+k].v))), eEnd = P[13], aft = this.afterExtra || [];
       const triExt = d1>0 ? Math.min.apply(null,P.slice(8).map(q=>q.v)) : Math.max.apply(null,P.slice(8).map(q=>q.v));
       let prog = 0, passed = false; aft.forEach(q=>{ prog = Math.max(prog, d1*(eEnd.v-q.v)); if(d1>0 ? q.v<triExt : q.v>triExt) passed = true; });
       const pct = prog/widest, t75 = eEnd.v-d1*0.75*widest, t125 = eEnd.v-d1*1.25*widest;
       this.thrust = {widest, prog, pct, t75, t125, passed};
       this.add("THC","5-27 thrust","after the Triangle the thrust (against the combination) reaches at least 75% of its widest wave and passes the Triangle's extreme", (pct>=0.75 && passed) ? true : null, false,
-        aft.length ? "so far "+f(prog)+" = "+pc(pct)+"% of the widest wave ("+f(widest)+")"+(passed?", past the Triangle extreme "+f(triExt):", not yet past the Triangle extreme "+f(triExt))+" · 75% level "+f(t75)+" · 125% level "+f(t125) : "no data after the Triangle");
+        aft.length ? "so far "+f(prog)+" = "+pc(pct)+"% of the widest wave ("+f(widest)+")"+(passed?", past the Triangle extreme "+f(triExt):", not yet past the Triangle extreme "+f(triExt))+" · 75% level "+f(t75)+" · Non-Limiting Triangle (it ends a complex correction): the thrust has no set maximum (Ch.5, Post-Triangular Thrust); expect a short-lived reaction near one widest-wave length, "+f(eEnd.v-d1*widest)+", then the move usually resumes" : "no data after the Triangle");
       this.add("535b","8 Table A","the inside of every wave follows the (5-3-5 / 3-3-5 / 3-3-3-3-3) pattern of its part, and the x-waves are 3-wave moves", null, false, "needs the inside of each wave: not tested here");
     }
   }
