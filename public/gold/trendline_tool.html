@@ -241,7 +241,7 @@ body.embed{padding-left:8px; padding-right:8px;}
           <label class="toggle" id="piWrap" title="Position Indicator Sequences (p.3-61..65): drop every label that has no legal neighbours, then run Pattern Isolation (circle the end of the first wave with only L5/L3, walk back three labels)"><input type="checkbox" id="togglePI"><span>PI + isolate</span></label>
           <label class="toggle" id="ruleMinWrap" title="Hide tags of monowaves smaller than this % of the visible price range"><span>min size</span><input type="range" id="ruleMin" min="0" max="15" step="0.5" value="0" style="width:80px"><span id="ruleMinVal">0%</span></label>
           <label class="toggle" title="Draw another timeframe's monowave line on top of this chart (same price axis; real series are in Oct-2026 dollars)"><span style="color:#1d4ed8;font-weight:700">Overlay</span>
-            <select id="overlaySel"><option value="">none</option><option value="yearlyreal">Yearly (real)</option><option value="monthlyreal">Monthly (real)</option><option value="twodayreal">2.5-Daily (real)</option><option value="yearly">Yearly</option><option value="twoyr">2.5-Yearly (real)</option><option value="halfyear">6-Monthly</option><option value="quarterly">3-Monthly</option><option value="monthly">Monthly</option><option value="twowk">2.5-Weekly</option><option value="twoday">2.5-Daily</option><option value="daily">Daily</option><option value="weekly">Weekly</option></select></label>
+            <select id="overlaySel"><option value="">none</option><option value="yearlyreal">Yearly (real)</option><option value="monthlyreal">Monthly (real)</option><option value="twodayreal">2.5-Daily (real)</option><option value="yearly">Yearly</option><option value="twoyr">2.5-Yearly (real)</option><option value="halfyear">6-Monthly</option><option value="quarterly">3-Monthly</option><option value="monthly">Monthly</option><option value="twowk">2.5-Weekly</option><option value="twoday">2.5-Daily</option><option value="daily">Daily</option><option value="weekly">Weekly</option></select> <label style="font-size:12px;white-space:nowrap" title="With an overlay on: a zoom window (inset) of the recent action, from 5 months before the high to now"><input type="checkbox" id="cbInset" checked> zoom window</label></label>
           <label class="toggle" id="redOnlyLabelWrap" style="display:none"><input type="checkbox" id="toggleRedOnly"><span class="dot" style="background:#d64545"></span><span>Validated (red) only</span></label>
         </div>
         <div class="chartrow" id="chartrow">
@@ -304,6 +304,10 @@ document.getElementById("overlaySel").addEventListener("change", e=>{
     return;
   }
   overlayTab = e.target.value; render();
+});
+document.getElementById("cbInset").addEventListener("change", ()=>{
+  if(typeof splitOn!=="undefined" && splitOn && !__EMBED){ const fd = paneDoc(focusPane), t = fd && fd.getElementById("cbInset"); if(t){ t.checked = document.getElementById("cbInset").checked; t.dispatchEvent(new Event("change")); } return; }
+  render();
 });
 const btnLog = document.getElementById("btnLog");
 const btnSquare2 = document.getElementById("btnSquare2");
@@ -1982,6 +1986,59 @@ function pivotSetB(){ // bound to toggle5 checkbox
 let overlayTab = "";
 const OV_NAMES = {twodayreal:"2.5-Daily (real)", monthlyreal:"Monthly (real)", yearlyreal:"Yearly (real)", yearly:"Yearly", twoyr:"2.5-Yearly (real)", halfyear:"6-Monthly", quarterly:"3-Monthly", monthly:"Monthly", twowk:"2.5-Weekly", twoday:"2.5-Daily", daily:"Daily", weekly:"Weekly"};
 function withTab(tab, fn){ const a = activeTab; activeTab = tab; try{ return fn(); } finally{ activeTab = a; } }
+let insetCorner = 0;   // 0 top-left, 1 top-right, 2 bottom-left, 3 bottom-right (click the inset title to move it)
+function drawZoomInset(g){
+  const cb = document.getElementById("cbInset");
+  if(!overlayTab || overlayTab===activeTab || !cb || !cb.checked) return;
+  const ov = withTab(overlayTab, rawSeries), bs = rawSeries();
+  if(!ov || !ov.t || ov.t.length<3 || !bs || !bs.t.length) return;
+  const DAY = 86400000, lastT = Math.max(ov.t[ov.t.length-1], bs.t[bs.t.length-1]);
+  let pk = -1, pv = -Infinity;
+  for(let i=0;i<ov.t.length;i++){ if(ov.t[i]>=lastT-3*365*DAY && ov.v[i]>pv){ pv = ov.v[i]; pk = i; } }
+  if(pk<0) return;
+  const z0 = ov.t[pk]-150*DAY, z1 = lastT+25*DAY;
+  const op = [], bp = [];
+  for(let i=0;i<ov.t.length;i++) if(ov.t[i]>=z0 && ov.t[i]<=z1) op.push([ov.t[i],ov.v[i]]);
+  for(let i=0;i<bs.t.length;i++) if(bs.t[i]>=z0 && bs.t[i]<=z1) bp.push([bs.t[i],bs.v[i]]);
+  if(op.length<2) return;
+  let lo = Infinity, hi = -Infinity;
+  op.concat(bp).forEach(q=>{ if(q[1]<lo) lo = q[1]; if(q[1]>hi) hi = q[1]; });
+  const logS = isLog(), pad = (logS ? Math.log(hi/lo) : hi-lo)*0.05;
+  if(logS){ lo = Math.exp(Math.log(lo)-pad); hi = Math.exp(Math.log(hi)+pad); } else { lo -= pad; hi += pad; }
+  // the zoomed region, marked on the main chart
+  const rx1 = Math.max(plot.x, sx(z0)), rx2 = Math.min(plot.x+plot.w, sx(z1)), ry1 = Math.max(plot.y, sy(hi)), ry2 = Math.min(plot.y+plot.h, sy(lo));
+  if(rx2>rx1 && ry2>ry1) g.appendChild(el("rect",{x:rx1,y:ry1,width:rx2-rx1,height:ry2-ry1,fill:"rgba(29,78,216,.06)",stroke:"#1d4ed8","stroke-width":1.4,"stroke-dasharray":"5 4","pointer-events":"none"}));
+  const W0 = Math.min(plot.w*0.44, 470), H0 = Math.min(plot.h*0.46, 280);
+  const bx = (insetCorner%2===0) ? plot.x+10 : plot.x+plot.w-W0-10, by = insetCorner<2 ? plot.y+10 : plot.y+plot.h-H0-10;
+  const inner = {x:bx+50, y:by+24, w:W0-62, h:H0-24-20};
+  const ix = t=>inner.x+(t-z0)/(z1-z0)*inner.w;
+  const iy = v=>{ const a = logS?Math.log(lo):lo, b = logS?Math.log(hi):hi, c = logS?Math.log(v):v; return inner.y+inner.h-(c-a)/(b-a)*inner.h; };
+  const gi = el("g",{}); g.appendChild(gi);
+  const bg = el("rect",{x:bx,y:by,width:W0,height:H0,rx:6,fill:"#ffffff","fill-opacity":.96,stroke:"#1d4ed8","stroke-width":1.6,style:"cursor:pointer"});
+  bg.addEventListener("mousedown", e=>e.stopPropagation());
+  bg.addEventListener("click", e=>{ e.stopPropagation(); insetCorner = (insetCorner+1)%4; render(); });
+  gi.appendChild(bg);
+  const ttl = el("text",{x:bx+8,y:by+15,"font-size":11,"font-weight":700,fill:"#1d4ed8","pointer-events":"none"});
+  ttl.textContent = "zoom: ATH → now · "+(OV_NAMES[overlayTab]||overlayTab)+" (click to move)"; gi.appendChild(ttl);
+  const cp = el("clipPath",{id:"insetClip"}); cp.appendChild(el("rect",{x:inner.x,y:inner.y-2,width:inner.w,height:inner.h+4})); gi.appendChild(cp);
+  for(let k=0;k<=3;k++){
+    const f = k/3, v = logS ? Math.exp(Math.log(lo)+(Math.log(hi)-Math.log(lo))*f) : lo+(hi-lo)*f, yy = iy(v);
+    gi.appendChild(el("line",{x1:inner.x,y1:yy,x2:inner.x+inner.w,y2:yy,stroke:"#e5e7eb","stroke-width":1,"pointer-events":"none"}));
+    const tx = el("text",{x:inner.x-5,y:yy+3.5,"text-anchor":"end","font-size":10,fill:"#475569","pointer-events":"none"}); tx.textContent = Math.round(v).toLocaleString("en-US"); gi.appendChild(tx);
+    const t = z0+(z1-z0)*f, dx = new Date(t), lab = dx.toISOString().slice(0,7);
+    const tl = el("text",{x:ix(t),y:inner.y+inner.h+13,"text-anchor":k===0?"start":k===3?"end":"middle","font-size":10,fill:"#475569","pointer-events":"none"}); tl.textContent = lab; gi.appendChild(tl);
+  }
+  const cg = el("g",{"clip-path":"url(#insetClip)","pointer-events":"none"}); gi.appendChild(cg);
+  if(bp.length>1) cg.appendChild(el("polyline",{points:bp.map(q=>ix(q[0])+","+iy(q[1])).join(" "),fill:"none",stroke:"#9aa0a6","stroke-width":1.2}));
+  cg.appendChild(el("polyline",{points:op.map(q=>ix(q[0])+","+iy(q[1])).join(" "),fill:"none",stroke:"#1d4ed8","stroke-width":1.8,"stroke-linejoin":"round"}));
+  const om = overlayMono().filter(q=>q && q.t>=z0 && q.t<=z1);
+  om.forEach(q=> cg.appendChild(el("circle",{cx:ix(q.t),cy:iy(q.v),r:2.6,fill:"#1d4ed8",stroke:"#fff","stroke-width":.8})));
+  const lp = op[op.length-1];
+  gi.appendChild(el("circle",{cx:ix(ov.t[pk]),cy:iy(pv),r:3.8,fill:"#111827","pointer-events":"none"}));
+  const t1 = el("text",{x:ix(ov.t[pk]),y:iy(pv)-7,"text-anchor":"middle","font-size":10,"font-weight":700,fill:"#111827","pointer-events":"none"}); t1.textContent = "high "+Math.round(pv).toLocaleString("en-US"); gi.appendChild(t1);
+  gi.appendChild(el("circle",{cx:ix(lp[0]),cy:iy(lp[1]),r:3.8,fill:"#111827","pointer-events":"none"}));
+  const t2 = el("text",{x:ix(lp[0])-6,y:iy(lp[1])+14,"text-anchor":"end","font-size":10,"font-weight":700,fill:"#111827","pointer-events":"none"}); t2.textContent = "now "+Math.round(lp[1]).toLocaleString("en-US"); gi.appendChild(t2);
+}
 function overlayMono(){ return (overlayTab && overlayTab!==activeTab) ? withTab(overlayTab, ()=> pivotSetA()||[]) : []; }
 function visibleSeries(){
   const {t,v} = rawSeries();
@@ -2779,6 +2836,7 @@ function render(){
     }
   }
   drawComboOverlay();
+  drawZoomInset(g);
   renderDzCard();
   renderCyanList();
   renderBoxList();
