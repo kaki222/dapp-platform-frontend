@@ -241,7 +241,7 @@ body.embed{padding-left:8px; padding-right:8px;}
           <label class="toggle" id="piWrap" title="Position Indicator Sequences (p.3-61..65): drop every label that has no legal neighbours, then run Pattern Isolation (circle the end of the first wave with only L5/L3, walk back three labels)"><input type="checkbox" id="togglePI"><span>PI + isolate</span></label>
           <label class="toggle" id="ruleMinWrap" title="Hide tags of monowaves smaller than this % of the visible price range"><span>min size</span><input type="range" id="ruleMin" min="0" max="15" step="0.5" value="0" style="width:80px"><span id="ruleMinVal">0%</span></label>
           <label class="toggle" title="Draw another timeframe's monowave line on top of this chart (same price axis; real series are in Oct-2026 dollars)"><span style="color:#1d4ed8;font-weight:700">Overlay</span>
-            <select id="overlaySel"><option value="">none</option><option value="yearlyreal">Yearly (real)</option><option value="monthlyreal">Monthly (real)</option><option value="twodayreal">2.5-Daily (real)</option><option value="yearly">Yearly</option><option value="twoyr">2.5-Yearly (real)</option><option value="halfyear">6-Monthly</option><option value="quarterly">3-Monthly</option><option value="monthly">Monthly</option><option value="twowk">2.5-Weekly</option><option value="twoday">2.5-Daily</option><option value="daily">Daily</option><option value="weekly">Weekly</option></select> <label style="font-size:12px;white-space:nowrap" title="On: the overlay timeframe opens in its own zoomable pop-up window (wheel = zoom, drag = pan, double-click = reset) and the main chart keeps only its own timeframe. Off: the overlay is drawn on the main chart."><input type="checkbox" id="cbInset" checked> popup window</label></label>
+            <select id="overlaySel"><option value="">none</option><option value="yearlyreal">Yearly (real)</option><option value="monthlyreal">Monthly (real)</option><option value="twodayreal">2.5-Daily (real)</option><option value="yearly">Yearly</option><option value="twoyr">2.5-Yearly (real)</option><option value="halfyear">6-Monthly</option><option value="quarterly">3-Monthly</option><option value="monthly">Monthly</option><option value="twowk">2.5-Weekly</option><option value="twoday">2.5-Daily</option><option value="daily">Daily</option><option value="weekly">Weekly</option></select> <label style="font-size:12px;white-space:nowrap" title="On: the overlay timeframe opens in its own zoomable pop-up window (wheel = zoom, drag = pan, double-click = reset) and the main chart keeps only its own timeframe. Off: the overlay is drawn on the main chart."><input type="checkbox" id="cbInset" checked> popup window</label></label> <a href="#" onclick="window.__llChart();return false" style="font-size:12px;white-space:nowrap;margin-left:6px" title="2.5-Daily (real, Oct-2026 $) on a log-log chart, plus the retracement of any swing on the normal AND the log scale">log-log &amp; retracement ▣</a>
           <label class="toggle" id="redOnlyLabelWrap" style="display:none"><input type="checkbox" id="toggleRedOnly"><span class="dot" style="background:#d64545"></span><span>Validated (red) only</span></label>
         </div>
         <div class="chartrow" id="chartrow">
@@ -4217,6 +4217,91 @@ window.__triPng = function(){
   img.src = "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(xml);
 };
 window.addEventListener("keydown", e=>{ if(e.key==="Escape" && triOpen){ triOpen = false; renderTriChart(); } });
+
+// ---- log-log view + retracement of a swing on BOTH scales (real values: 2.5-Daily, Oct-2026 $) ----
+let llOpen = false, llMode = "loglog", llFrom = "", llTo = "";
+function llDay(t){ return new Date(t).toISOString().slice(0,10); }
+function llNear(ser, ds, isHigh){   // extreme bar within +-12 days of the typed date
+  const t0 = Date.parse(ds); if(!isFinite(t0)) return null; let bi = -1;
+  for(let i=0;i<ser.t.length;i++){ if(Math.abs(ser.t[i]-t0)<=12*864e5 && (bi<0 || (isHigh ? ser.v[i]>ser.v[bi] : ser.v[i]<ser.v[bi]))) bi = i; }
+  return bi<0 ? null : {t:ser.t[bi], v:ser.v[bi]};
+}
+function llData(){
+  const ser = withTab("twodayreal", rawSeries); if(!ser || !ser.t || ser.t.length<10) return null;
+  const pv = withTab("twodayreal", pivotSetA).filter(q=>q && isFinite(q.t) && isFinite(q.v)).sort((a,b)=>a.t-b.t);
+  if(!llFrom || !llTo){   // default swing: the last swing high (highest pivot of the last 3 years) and the lowest pivot of the 2 years before it that is part of the same advance
+    const tEnd = ser.t[ser.t.length-1], recent = pv.filter(q=>q.t>tEnd-3*365.25*864e5);
+    if(recent.length){ const hi = recent.reduce((m,q)=>q.v>m.v?q:m, recent[0]);
+      const before = pv.filter(q=>q.t<hi.t && q.t>hi.t-2*365.25*864e5), lo = before.length ? before.reduce((m,q)=>q.v<m.v?q:m, before[0]) : null;
+      if(lo){ llFrom = llDay(lo.t); llTo = llDay(hi.t); } }
+  }
+  const A = llFrom ? llNear(ser, llFrom, false) : null, B = llTo ? llNear(ser, llTo, true) : null;
+  let sw = null; if(A && B && B.t>A.t){ const now = {t:ser.t[ser.t.length-1], v:ser.v[ser.v.length-1]}, aft = []; for(let i=0;i<ser.t.length;i++) if(ser.t[i]>=B.t) aft.push(ser.v[i]);
+    const low = Math.min.apply(null,aft); const up = B.v>A.v; sw = {A:A,B:B,now:now,up:up,ext:up?low:Math.max.apply(null,aft)}; }
+  return {ser:ser, pv:pv, sw:sw};
+}
+function llRet(sw,p){ const lin = (sw.B.v-p)/(sw.B.v-sw.A.v), lg = Math.log(sw.B.v/p)/Math.log(sw.B.v/sw.A.v); return sw.up ? {lin:lin,lg:lg} : {lin:-lin,lg:-lg}; }
+function llLevel(sw,r,scale){ return scale==="lin" ? sw.B.v-(sw.up?1:-1)*r*Math.abs(sw.B.v-sw.A.v) : sw.B.v*Math.pow(sw.A.v/sw.B.v, r); }
+function renderLLChart(){
+  let box = document.getElementById("llBox");
+  if(!llOpen){ if(box) box.style.display = "none"; return; }
+  if(!box){
+    box = document.createElement("div"); box.id = "llBox";
+    box.style.cssText = "position:fixed;top:56px;left:50%;transform:translateX(-50%);width:min(1130px,96vw);background:#fff;border:1.5px solid #0f766e;border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,.28);z-index:61;padding:8px 10px 10px";
+    box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:10px;flex-wrap:wrap"><b style="color:#0f766e;font-size:13px">2.5-Daily (real) · log-log &amp; retracement</b>'
+      +'<span style="font-size:12px">axes <select id="llMode"><option value="loglog">log-log</option><option value="semilog">semi-log</option></select> &nbsp; swing from <input id="llFrom" type="text" size="11" placeholder="YYYY-MM-DD" style="font-size:12px" title="Start of the swing (nearest extreme within 12 days)"> to <input id="llTo" type="text" size="11" placeholder="YYYY-MM-DD" style="font-size:12px" title="End of the swing (nearest extreme within 12 days)"></span>'
+      +'<span style="font-size:12px"><a href="#" onclick="window.__llPng();return false">save PNG</a> &nbsp; <a href="#" onclick="window.__llChart();return false">✕ close</a></span></div><div id="llHost"></div>';
+    document.body.appendChild(box);
+    document.getElementById("llMode").addEventListener("change", e=>{ llMode = e.target.value; renderLLChart(); });
+    ["llFrom","llTo"].forEach(id=>document.getElementById(id).addEventListener("change", e=>{ if(id==="llFrom") llFrom = e.target.value.trim(); else llTo = e.target.value.trim(); renderLLChart(); }));
+  }
+  box.style.display = "block";
+  const d = llData(), host = document.getElementById("llHost"); if(!d){ host.textContent = "No 2.5-Daily (real) data."; return; }
+  document.getElementById("llMode").value = llMode; if(document.activeElement!==document.getElementById("llFrom")) document.getElementById("llFrom").value = llFrom; if(document.activeElement!==document.getElementById("llTo")) document.getElementById("llTo").value = llTo;
+  const W = 1100, H = 620, ML = 70, MR = 190, MT = 44, MB = 70, NS = "http://www.w3.org/2000/svg", HALO = "paint-order:stroke;stroke:#ffffff;stroke-width:3.5px;stroke-linejoin:round";
+  const svg = document.createElementNS(NS,"svg"); svg.setAttribute("id","llSvg"); svg.setAttribute("viewBox","0 0 "+W+" "+H); svg.setAttribute("width","100%"); svg.setAttribute("xmlns",NS); svg.style.background = "#fff";
+  const mk = (n,a)=>{ const e = document.createElementNS(NS,n); for(const k in a) e.setAttribute(k,a[k]); svg.appendChild(e); return e; };
+  const txt = (a,str)=>{ const e = mk("text",a); e.setAttribute("style",HALO); e.textContent = str; return e; };
+  const T = d.ser.t, V = d.ser.v, o = T[0], YR = 365.25*864e5, sw = d.sw, LL = llMode==="loglog";
+  const xf = t => LL ? Math.log((t-o)/YR+0.5) : t;
+  let vmin = Infinity, vmax = 0; V.forEach(v=>{ if(v<vmin) vmin = v; if(v>vmax) vmax = v; }); vmin /= 1.08; vmax *= 1.08;
+  const xa = xf(T[0]), xb = xf(T[T.length-1]) + (LL ? 0.02 : 0.03*(T[T.length-1]-T[0]));
+  const X = t => ML + (xf(t)-xa)/(xb-xa)*(W-ML-MR), Y = v => MT + (Math.log(vmax)-Math.log(v))/(Math.log(vmax)-Math.log(vmin))*(H-MT-MB);
+  mk("rect",{x:ML,y:MT,width:W-ML-MR,height:H-MT-MB,fill:"none",stroke:"#94a3b8"});
+  [500,600,800,1000,1500,2000,3000,4000,5000].forEach(v=>{ if(v<vmin||v>vmax) return; mk("line",{x1:ML,x2:W-MR,y1:Y(v),y2:Y(v),stroke:"#e2e8f0"}); txt({x:ML-6,y:Y(v)+4,"text-anchor":"end","font-size":11,fill:"#475569"},triFmt(v)); });
+  let lastX = -99; for(let yr=2001; yr<=2030; yr++){ const t = Date.UTC(yr,0,1); if(t<T[0]-YR || t>T[T.length-1]+YR) continue; const x = X(t); if(x<ML||x>W-MR||x-lastX<26) continue; lastX = x; mk("line",{x1:x,x2:x,y1:MT,y2:H-MB,stroke:"#eef2f7"}); txt({x:x,y:H-MB+16,"text-anchor":"middle","font-size":11,fill:"#475569"},String(yr)); }
+  let pts = ""; for(let i=0;i<T.length;i++) pts += X(T[i]).toFixed(1)+","+Y(V[i]).toFixed(1)+" "; mk("polyline",{points:pts,fill:"none",stroke:"#9aa3af","stroke-width":1});
+  let pp = ""; d.pv.forEach(q=>{ pp += X(q.t).toFixed(1)+","+Y(q.v).toFixed(1)+" "; }); mk("polyline",{points:pp,fill:"none",stroke:"#c4b5fd","stroke-width":1});
+  let sub = "";
+  if(sw){
+    const lv = [0.382,0.5,0.618,0.786], R = llRet(sw, sw.now.v), Rx = llRet(sw, sw.ext);
+    mk("line",{x1:X(sw.A.t),y1:Y(sw.A.v),x2:X(sw.B.t),y2:Y(sw.B.v),stroke:"#6d28d9","stroke-width":2.6});
+    mk("line",{x1:X(sw.B.t),y1:Y(sw.B.v),x2:X(sw.now.t),y2:Y(sw.now.v),stroke:"#dc2626","stroke-width":2});
+    [sw.A,sw.B].forEach(q=>mk("circle",{cx:X(q.t),cy:Y(q.v),r:5,fill:"#6d28d9"})); mk("circle",{cx:X(sw.now.t),cy:Y(sw.now.v),r:5,fill:"#dc2626"});
+    txt({x:X(sw.A.t)+8,y:Y(sw.A.v)+16,"font-size":12,"font-weight":700,fill:"#4c1d95"},llDay(sw.A.t)+"  "+triFmt(sw.A.v));
+    txt({x:X(sw.B.t)-8,y:Y(sw.B.v)-8,"text-anchor":"end","font-size":12,"font-weight":700,fill:"#4c1d95"},llDay(sw.B.t)+"  "+triFmt(sw.B.v));
+    // level lines: log (teal) and normal (orange); labels in the right margin, pushed apart so they never overlap
+    const rows = []; lv.forEach(r=>{ rows.push({y:Y(llLevel(sw,r,"lg")),c:"#0f766e",x:W-MR+8,l:(r*100).toFixed(1)+"% log "+triFmt(llLevel(sw,r,"lg"))}); rows.push({y:Y(llLevel(sw,r,"lin")),c:"#c2410c",x:W-MR+8,l:(r*100).toFixed(1)+"% lin "+triFmt(llLevel(sw,r,"lin"))}); });
+    rows.forEach(r=>mk("line",{x1:ML,x2:W-MR,y1:r.y,y2:r.y,stroke:r.c,"stroke-width":1,"stroke-dasharray":"5 4",opacity:.75}));
+    rows.sort((a,b)=>a.y-b.y); rows.forEach((r,i)=>{ r.ly = i>0 ? Math.max(r.y, rows[i-1].ly+14) : r.y; }); rows.forEach(r=>{ const ly = r.ly; if(Math.abs(ly-r.y)>1) mk("line",{x1:W-MR,y1:r.y,x2:W-MR+6,y2:ly,stroke:r.c}); txt({x:r.x,y:ly+4,"font-size":11,"font-weight":700,fill:r.c},r.l); });
+    txt({x:X(sw.now.t)-8,y:Y(sw.now.v)+4,"text-anchor":"end","font-size":13,"font-weight":700,fill:"#b91c1c"},"now "+triFmt(sw.now.v));
+    const pc = x=>(x*100).toFixed(1)+"%", band = [llLevel(sw,0.618,"lg"),llLevel(sw,0.618,"lin")].sort((a,b)=>a-b);
+    sub = "Swing "+triFmt(sw.A.v)+" → "+triFmt(sw.B.v)+" (×"+(sw.B.v/sw.A.v).toFixed(2)+"). Retraced now: "+pc(R.lin)+" normal · "+pc(R.lg)+" log (deepest so far "+pc(Rx.lin)+" · "+pc(Rx.lg)+"). 61.8% level: "+triFmt(band[0])+" (log) – "+triFmt(band[1])+" (normal): between them the two scales disagree.";
+    if(!sw.up) sub = "Down-swing: "+sub;
+  } else sub = "Type the start and end dates of a swing (YYYY-MM-DD).";
+  txt({x:ML,y:H-14,"font-size":12,fill:"#475569"},sub.length>190 ? sub.slice(0,187)+"…" : sub);
+  txt({x:ML,y:26,"font-size":17,"font-weight":700,fill:"#0f172a"},(LL ? "Log-log" : "Semi-log")+" · 2.5-Daily (real, Oct-2026 $)"+(LL ? " · time = log(years since Jan-2001 + 0.5)" : ""));
+  host.innerHTML = ""; host.appendChild(svg);
+}
+window.__llChart = function(){ llOpen = !llOpen; renderLLChart(); };
+window.__llPng = function(){
+  const svg = document.getElementById("llSvg"); if(!svg) return;
+  const xml = new XMLSerializer().serializeToString(svg), img = new Image();
+  img.onload = ()=>{ const cv = document.createElement("canvas"); cv.width = 2200; cv.height = 1240; const cx = cv.getContext("2d"); cx.fillStyle = "#fff"; cx.fillRect(0,0,cv.width,cv.height); cx.drawImage(img,0,0,cv.width,cv.height);
+    cv.toBlob(b=>{ const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "loglog_retracement.png"; document.body.appendChild(a); a.click(); a.remove(); }); };
+  img.src = "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(xml);
+};
+window.addEventListener("keydown", e=>{ if(e.key==="Escape" && llOpen){ llOpen = false; renderLLChart(); } });
 
 function setCompactLevel(L){
   if(compactMode && compactLevel===L) compactMode = false; else { compactMode = true; compactLevel = L; }
