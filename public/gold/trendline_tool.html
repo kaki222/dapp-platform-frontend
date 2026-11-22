@@ -4048,10 +4048,10 @@ function drawComboOverlay(){
       if(inside){
         g2.appendChild(el("circle",{cx:ax,cy:ay,r:6,fill:"none",stroke:COL,"stroke-width":1.8}));
         g2.appendChild(el("line",{x1:ax-6,y1:ay,x2:ax+6,y2:ay,stroke:COL,"stroke-width":1.4})); g2.appendChild(el("line",{x1:ax,y1:ay-6,x2:ax,y2:ay+6,stroke:COL,"stroke-width":1.4}));
-        const tx = el("text",{x:ax-9,y:ay+pos,"text-anchor":"end","font-size":11,"font-weight":700,fill:COL}); tx.textContent = tl; g2.appendChild(tx);
+        const tx = el("text",{x:ax+(pos>0?9:-9),y:ay-12,"text-anchor":pos>0?"start":"end","font-size":11,"font-weight":700,fill:COL,style:"paint-order:stroke;stroke:var(--panel,#fff);stroke-width:3px;stroke-linejoin:round"}); tx.textContent = tl; g2.appendChild(tx);
       } else {
         const yy = Math.min(plot.y+plot.h-6, Math.max(plot.y+12, ay))+(pos>0?14:0);
-        const tx = el("text",{x:plot.x+plot.w-8,y:yy,"text-anchor":"end","font-size":11,"font-weight":700,fill:COL}); tx.textContent = tl+" ▸ (scroll right)"; g2.appendChild(tx);
+        const tx = el("text",{x:plot.x+plot.w-8,y:yy,"text-anchor":"end","font-size":11,"font-weight":700,fill:COL,style:"paint-order:stroke;stroke:var(--panel,#fff);stroke-width:3px;stroke-linejoin:round"}); tx.textContent = tl+" ▸ (scroll right)"; g2.appendChild(tx);
       }
     };
     if(ap && al){   // apex ZONE: vertical strip between the two apex dates, horizontal band between the two apex prices
@@ -4062,8 +4062,8 @@ function drawComboOverlay(){
       g2.appendChild(el("line",{x1:sx(al.a.t),y1:sy(al.a.v),x2:sx(al.ta),y2:sy(al.va),stroke:COL,"stroke-width":1,"stroke-dasharray":"2 4",opacity:.7}));
       g2.appendChild(el("circle",{cx:sx(al.a.t),cy:sy(al.a.v),r:5,fill:"#fff",stroke:COL,"stroke-width":1.8}));
       const first = ap.ta<=al.ta ? ap : al, last = first===ap ? al : ap;
-      dot(first,"apex (shortest)",-9); dot(last,"apex (farthest)",18);
-      const zt = el("text",{x:plot.x+8,y:plot.y+34,"font-size":11.5,"font-weight":700,fill:COL}); zt.textContent = "apex zone "+new Date(first.ta).toISOString().slice(0,10)+" → "+new Date(last.ta).toISOString().slice(0,10)+" · support ≈ "+Math.round(v0).toLocaleString("en-US")+(Math.round(v0)===Math.round(v1)?"":" – "+Math.round(v1).toLocaleString("en-US")); g2.appendChild(zt);
+      dot(first,"shortest",-1); dot(last,"farthest",1);
+      const zt = el("text",{x:plot.x+8,y:plot.y+plot.h-10,"font-size":11.5,"font-weight":700,fill:COL}); zt.textContent = "apex zone "+new Date(first.ta).toISOString().slice(0,10)+" → "+new Date(last.ta).toISOString().slice(0,10)+" · support ≈ "+Math.round(v0).toLocaleString("en-US")+(Math.round(v0)===Math.round(v1)?"":" – "+Math.round(v1).toLocaleString("en-US")); g2.appendChild(zt);
     } else if(ap) dot(ap,"apex",-9);
   } else if(tri){ const ln = tri.lines, tEnd = x.piv[x.piv.length-1].t, tS = ln.ac.a.t;
     [ln.bd, ln.ac].forEach(L=>{ g2.appendChild(el("line",{x1:sx(tS),y1:sy(L.a.v+L.s*(tS-L.a.t)),x2:sx(tEnd),y2:sy(L.a.v+L.s*(tEnd-L.a.t)),stroke:COL,"stroke-width":1,"stroke-dasharray":"4 4",opacity:0.55})); }); }
@@ -4138,16 +4138,16 @@ function renderTriChart(){
   box.style.display = "block"; document.getElementById("triUpper").value = triUpper;
   const host = document.getElementById("triHost"), d = triData();
   if(!d){ host.innerHTML = '<div style="padding:30px;color:#52525b;font-size:13px">Click DCombo, then click a row whose pattern ends in a triangle (its trendlines are drawn); this chart follows the selected row.</div>'; return; }
-  const W = 1100, H = 620, ML = 72, MR = 30, MT = 46, MB = 58, NS = "http://www.w3.org/2000/svg", lg = d.calc.log;
+  const W = 1100, H = 650, ML = 72, MR = 30, MT = 46, MB = 84, NS = "http://www.w3.org/2000/svg", lg = d.calc.log;
   const svg = document.createElementNS(NS,"svg"); svg.setAttribute("id","triSvg"); svg.setAttribute("xmlns",NS); svg.setAttribute("viewBox","0 0 "+W+" "+H); svg.setAttribute("width","100%"); svg.setAttribute("style","display:block;background:#fff;font-family:Inter,Arial,sans-serif");
   const mk = (tag,a)=>{ const e = document.createElementNS(NS,tag); for(const k in a) e.setAttribute(k,a[k]); return e; };
-  const txt = (a,str)=>{ const e = mk("text",a); e.textContent = str; svg.appendChild(e); return e; };
+  const HALO = "paint-order:stroke;stroke:#ffffff;stroke-width:3.5px;stroke-linejoin:round", txt = (a,str)=>{ const e = mk("text",a); e.setAttribute("style",HALO); e.textContent = str; svg.appendChild(e); return e; };
   const {T,V,ser,L,widest,small,now,thr,calc} = d, ap = calc.main, al = calc.alt;
-  const aps = [ap, al].filter(Boolean), tEnd = aps.length ? Math.max.apply(null, aps.map(q=>q.ta)) : (now ? now.t : T[5]), spanR = tEnd-T[0], x0 = T[0]-0.05*spanR, x1 = tEnd+0.08*spanR;
+  const aps = [ap, al].filter(Boolean), tEnd = aps.length ? Math.max.apply(null, aps.map(q=>q.ta)) : (now ? now.t : T[5]), spanR = tEnd-T[0], x0 = T[0]-0.05*spanR, x1 = tEnd+(ap && al ? 0.2 : 0.09)*spanR;
   const pts = []; for(let i=0;i<ser.t.length;i++) if(ser.t[i]>=x0 && ser.t[i]<=x1) pts.push([ser.t[i],ser.v[i]]);
   let lo = Math.min.apply(null,V.concat([thr, now?now.v:V[5]].concat(aps.map(q=>q.va)))), hi = Math.max.apply(null,V.concat(aps.map(q=>q.va)));
   pts.forEach(q=>{ if(q[1]<lo && q[1]>lo-widest*1.2) lo = Math.min(lo,q[1]); if(q[1]>hi) hi = q[1]; });
-  if(lg){ lo = Math.max(lo,1)/1.06; hi = hi*1.06; } else { const padY = (hi-lo)*0.06; lo -= padY; hi += padY; }
+  if(lg){ lo = Math.max(lo,1)/1.12; hi = hi*1.1; } else { const padY = (hi-lo)*0.06; lo -= padY; hi += padY; }
   const X = t=>ML+(t-x0)/(x1-x0)*(W-ML-MR), Y = v=>lg ? MT+(Math.log(hi)-Math.log(Math.max(v,1e-9)))/(Math.log(hi)-Math.log(lo))*(H-MT-MB) : MT+(hi-v)/(hi-lo)*(H-MT-MB);
   svg.appendChild(mk("rect",{x:0,y:0,width:W,height:H,fill:"#fff"}));
   // grid: y (nice steps, or 1-2-3-4-5-6-8 on a log axis) and month ticks
@@ -4188,21 +4188,21 @@ function renderTriChart(){
   if(now) cg.appendChild(mk("circle",{cx:X(now.t),cy:Y(now.v),r:4.5,fill:"#dc2626"}));
   const names = [d.c.kinds.length>1 ? "x" : "start","a","b","c","d","e"];
   T.forEach((t,k)=>{ const nb = k===0 ? V[1] : V[k-1], up = V[k]>nb; txt({x:X(t),y:Y(V[k])+(up?-12:20),"text-anchor":"middle","font-size":13,"font-weight":700,fill:"#4c1d95"},names[k]+"  "+triFmt(V[k])); });
-  if(now) txt({x:X(now.t)-8,y:Y(now.v)+22,"text-anchor":"end","font-size":13,"font-weight":700,fill:"#b91c1c"},"now  "+triFmt(now.v));
-  const mark = (q,lab,dy)=>{ svg.appendChild(mk("circle",{cx:X(q.ta),cy:Y(q.va),r:10,fill:"none",stroke:LC,"stroke-width":2.4}));
-    const lx = Math.min(X(q.ta)+4, W-MR-6); txt({x:lx,y:Y(q.va)+dy,"text-anchor":"end","font-size":13,"font-weight":700,fill:LC},lab); txt({x:lx,y:Y(q.va)+dy+15,"text-anchor":"end","font-size":13,"font-weight":700,fill:LC},triDay(q.ta)+"  ≈ "+triFmt(q.va)); };
+  if(now) txt({x:X(now.t)+9,y:Y(now.v)+4,"text-anchor":"start","font-size":13,"font-weight":700,fill:"#b91c1c"},"now  "+triFmt(now.v));
+  const ring = q=>svg.appendChild(mk("circle",{cx:X(q.ta),cy:Y(q.va),r:10,fill:"none",stroke:LC,"stroke-width":2.4}));
+  const tag = (q,lab,x,anch,y)=>{ txt({x:x,y:y,"text-anchor":anch,"font-size":13,"font-weight":700,fill:LC},lab); txt({x:x,y:y+16,"text-anchor":anch,"font-size":13,"font-weight":700,fill:LC},triDay(q.ta)+"  ≈ "+triFmt(q.va)); };
   if(ap && al){
-    const first = ap.ta<=al.ta ? ap : al, last = first===ap ? al : ap;
-    mark(first,"apex (shortest)",Y(first.va)>H-MB-90 ? -52 : 34); mark(last,"apex (farthest)",Y(last.va)>H-MB-90 ? -52 : 34);
-    const v0 = Math.min(ap.va,al.va), v1 = Math.max(ap.va,al.va);
+    const first = ap.ta<=al.ta ? ap : al, last = first===ap ? al : ap, v0 = Math.min(ap.va,al.va), v1 = Math.max(ap.va,al.va), ty = Math.max(MT+44, Y(v1)-92);
+    ring(first); ring(last);
+    tag(first,"apex (shortest)",X(first.ta)-12,"end",ty); tag(last,"apex (farthest)",X(last.ta)+12,"start",ty);
     txt({x:ML+8,y:MT+18,"font-size":13,"font-weight":700,fill:LC},"APEX ZONE  "+triDay(first.ta)+" → "+triDay(last.ta)+"   ·   support level ≈ "+triFmt(v0)+(Math.round(v0)===Math.round(v1)?"":" – "+triFmt(v1)));
-  } else if(ap){ mark(ap,"APEX",Y(ap.va)>H-MB-90 ? -52 : 34); }
+  } else if(ap){ ring(ap); tag(ap,"APEX",X(ap.ta)-14,"end",Math.max(MT+30,Y(ap.va)-50)); }
   else txt({x:W-MR-8,y:MT+18,"text-anchor":"end","font-size":12,"font-weight":700,fill:"#b45309"},"trendlines do not converge after e: no apex");
   txt({x:ML+6,y:(Y(thr)<H-MB-16 ? Y(thr)-6 : Y(thr)+14),"font-size":12,fill:"#475569"},"e "+(d.dir<0?"−":"+")+" one widest leg ("+triFmt(widest)+") ≈ "+triFmt(thr));
   const sg = (sl)=>Math.abs(sl*(T[5]-T[2]))<0.02*L[0] ? "flat" : sl>0 ? "up" : "down", s1 = sg(d.sbd), s2 = sg(d.sac);
   const nm = ["a","b","c","d","e"], big = L.indexOf(widest), sm = L.indexOf(small);
   const summ = nm.map((n,i)=>n+" "+triFmt(L[i])+(i===big?" (longest)":"")+(i===sm?" (smallest)":"")).join(" · ")+" · "+(s1===s2 ? "both lines slope "+s1 : "lines slope "+s2+" (a–c) and "+s1+" (b–d)")+" · upper line "+(triUpper==="0b"?"0–b":"b–d")+", "+(lg?"straight on the log chart":"straight in price");
-  txt({x:ML+6,y:H-MB-8,"font-size":12,fill:"#475569"},summ);
+  txt({x:ML,y:H-14,"font-size":12,fill:"#475569"},summ);
   const tn = TAB_NAMES[activeTab] || activeTab, isReal = /real/.test(activeTab);
   txt({x:ML,y:26,"font-size":17,"font-weight":700,fill:"#0f172a"},(d.tri.cls ? d.tri.cls+" triangle" : "Triangle")+" "+names[0]+"→e ("+tn+" pivots, "+(isReal?"Oct-2026 $":"nominal")+"): lines converge to the apex");
   host.innerHTML = ""; host.appendChild(svg);
