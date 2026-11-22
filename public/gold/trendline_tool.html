@@ -2888,6 +2888,7 @@ function render(){
   }
   drawComboOverlay();
   drawZoomInset(g);
+  if(triOpen) renderTriChart();
   renderDzCard();
   renderCyanList();
   renderBoxList();
@@ -3990,7 +3991,7 @@ function renderCbCard(){
   card.hidden = !cbOn; if(!cbOn) return;
   if(cbMin){   // folded away: one slim line, the drawing stays on the chart
     const xs = cbSel>=0 && cbList[cbSel];
-    card.innerHTML = '<div style="display:flex;justify-content:space-between;gap:14px;align-items:center"><span><b>'+(cbOn==="dz"?"DZigzag":"DCombo")+'</b> · '+(xs ? xs.label+' drawn' : cbList.length+' idea(s)')+'</span><span><a href="#" onclick="window.__cbMin();return false" title="Show the list again">show ▾</a> &nbsp; <a href="#" onclick="window.__cbClose();return false" title="Close and clear the drawing">✕</a></span></div>';
+    card.innerHTML = '<div style="display:flex;justify-content:space-between;gap:14px;align-items:center"><span><b>'+(cbOn==="dz"?"DZigzag":"DCombo")+'</b> · '+(xs ? xs.label+' drawn' : cbList.length+' idea(s)')+'</span><span><a href="#" onclick="window.__cbMin();return false" title="Show the list again">show ▾</a> &nbsp; <a href="#" onclick="window.__triChart();return false" title="The selected triangle on its own chart, with the apex (live, save as PNG)">triangle chart ▣</a> &nbsp; <a href="#" onclick="window.__cbClose();return false" title="Close and clear the drawing">✕</a></span></div>';
     return;
   }
   const mark = r=>r===true?'<span style="color:#15803d">✔</span>':r===false?'<span style="color:#b91c1c">✘</span>':'<span style="color:#b45309">?</span>';
@@ -4010,7 +4011,7 @@ function renderCbCard(){
       + (c.channel ? '<div style="margin:3px 0 1px;font-size:11.5px"><b>Channel and thrust (soft: they rank, they do not rule out)</b></div>' + c.tests.filter(t=>["CH1","CH2","THC"].indexOf(t.id)>=0).map(t=>'<div style="margin:1px 0;font-size:11px">'+mark(t.result)+' '+t.text+'<span style="color:#52525b"> — '+t.note+'</span></div>').join("") : "") + '</div>';
   }
   card.innerHTML = '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><b>'+(cbOn==="dz"?"DZigzag ideas":"DCombo ideas")+'</b> <span style="font-size:11px;color:#71717a">'+cbWin+'</span>'
-    +'<span><a href="#" onclick="window.__cbMin();return false" title="Fold the window away (the drawing stays)">hide ▴</a> &nbsp; <a href="#" onclick="window.__cbDet();return false" title="Show or hide the test list of the selected row">'+(cbDet?'details ▴':'details ▾')+'</a> &nbsp; <a href="#" onclick="window.__cbRun();return false" title="Search again for the window now on screen">↻</a> &nbsp; <a href="#" onclick="window.__cbClose();return false" title="Close">✕</a></span></div>'
+    +'<span><a href="#" onclick="window.__cbMin();return false" title="Fold the window away (the drawing stays)">hide ▴</a> &nbsp; <a href="#" onclick="window.__triChart();return false" title="The selected triangle on its own chart, with the apex (live, save as PNG)">triangle chart ▣</a> &nbsp; <a href="#" onclick="window.__cbDet();return false" title="Show or hide the test list of the selected row">'+(cbDet?'details ▴':'details ▾')+'</a> &nbsp; <a href="#" onclick="window.__cbRun();return false" title="Search again for the window now on screen">↻</a> &nbsp; <a href="#" onclick="window.__cbClose();return false" title="Close">✕</a></span></div>'
     + (rows || '<div style="margin:6px 0;color:#71717a">'+(cbNote||"Nothing found.")+'</div>')
     + (cbList.length && cbNote ? '<div style="font-size:11px;color:#71717a">'+cbNote+'</div>' : '') + det
     + '<div style="font-size:11px;color:#71717a;margin-top:5px">Click a row to draw it, click again to remove. Pivots only: the 5-3-5 / 3-3-5 / 3-3-3-3-3 inside of the waves is not tested. Triangle trendlines use straight value (not log). Similarity (1/3 of price or time) is applied to neighbouring parts. Rows 7-8: the base-line channel (p. 12-18/19) and the thrust (p. 5-27) are soft tests, they rank and do not rule out.</div>';
@@ -4060,6 +4061,110 @@ function drawComboOverlay(){
   }
   svg.appendChild(g2);
 }
+
+// ---------- triangle chart: the selected DCombo triangle on its own chart, live (redraws on every pick / data change), with the apex; save as PNG ----------
+let triOpen = false;
+function triFmt(n){ return Math.round(n).toLocaleString("en-US"); }
+function triData(){
+  if(!cbOn || cbSel<0 || !cbList[cbSel] || cbTab!==activeTab) return null;
+  const x = cbList[cbSel], c = x.c, tri = c.parts.find(z=>z.lines);
+  if(!tri || x.piv.length<6) return null;
+  const tp = x.piv.slice(-6).map(q=>({t:q.t,v:q.v}));
+  const fineTab = ["monthly","quarterly","halfyear","yearly"].indexOf(activeTab)>=0 ? "daily" : ["monthlyreal","yearlyreal","twoyr"].indexOf(activeTab)>=0 ? "twodayreal" : null;
+  const ser = fineTab ? withTab(fineTab, rawSeries) : rawSeries();
+  if(!ser || !ser.t || !ser.t.length) return null;
+  if(activeTab==="monthly" || activeTab==="monthlyreal"){   // snap each pivot to the extreme of its month on the finer series (exact day)
+    tp.forEach((q,k)=>{
+      const nb = k===0 ? tp[1] : tp[k-1], isHigh = q.v > nb.v, d0 = new Date(q.t), a = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth(), 1), b = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth()+1, 1);
+      let bi = -1;
+      for(let i=0;i<ser.t.length;i++){ if(ser.t[i]>=a && ser.t[i]<b && (bi<0 || (isHigh ? ser.v[i]>ser.v[bi] : ser.v[i]<ser.v[bi]))) bi = i; }
+      if(bi>=0) q.t = ser.t[bi];
+    });
+  }
+  const T = tp.map(q=>q.t), V = tp.map(q=>q.v);
+  const sbd = (V[4]-V[2])/(T[4]-T[2]), sac = (V[3]-V[1])/(T[3]-T[1]);
+  let ta = null, va = null;
+  if(sbd!==sac){ const t = ((V[1]-sac*T[1])-(V[2]-sbd*T[2]))/(sbd-sac); if(isFinite(t) && t>T[5]){ ta = t; va = V[2]+sbd*(t-T[2]); } }
+  const L = [0,1,2,3,4].map(k=>Math.abs(V[k+1]-V[k])), widest = Math.max.apply(null,L), small = Math.min.apply(null,L);
+  const after = pivotSetA().filter(q=>q && q.t>T[5]).sort((m,n)=>m.t-n.t), now = after.length ? after[after.length-1] : null;
+  const dir = now ? Math.sign(now.v-V[5]) : (sbd+sac<0 ? -1 : 1);
+  return {x, c, tri, tp, T, V, ser, sbd, sac, ta, va, L, widest, small, now, dir, thr: V[5]+dir*widest};
+}
+function renderTriChart(){
+  let box = document.getElementById("triBox");
+  if(!triOpen){ if(box) box.style.display = "none"; return; }
+  if(!box){
+    box = document.createElement("div"); box.id = "triBox";
+    box.style.cssText = "position:fixed;top:64px;left:50%;transform:translateX(-50%);width:min(1130px,96vw);background:#fff;border:1.5px solid #7e22ce;border-radius:8px;box-shadow:0 8px 30px rgba(0,0,0,.28);z-index:60;padding:8px 10px 10px";
+    box.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><b style="color:#7e22ce;font-size:13px" id="triTtl">Triangle chart</b><span style="font-size:12px"><a href="#" onclick="window.__triPng();return false">save PNG</a> &nbsp; <a href="#" onclick="window.__triChart();return false">✕ close</a></span></div><div id="triHost"></div>';
+    document.body.appendChild(box);
+  }
+  box.style.display = "block";
+  const host = document.getElementById("triHost"), d = triData();
+  if(!d){ host.innerHTML = '<div style="padding:30px;color:#52525b;font-size:13px">Click DCombo, then click a row whose pattern ends in a triangle (its trendlines are drawn); this chart follows the selected row.</div>'; return; }
+  const W = 1100, H = 620, ML = 72, MR = 30, MT = 46, MB = 58, NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS,"svg"); svg.setAttribute("id","triSvg"); svg.setAttribute("xmlns",NS); svg.setAttribute("viewBox","0 0 "+W+" "+H); svg.setAttribute("width","100%"); svg.setAttribute("style","display:block;background:#fff;font-family:Inter,Arial,sans-serif");
+  const mk = (tag,a)=>{ const e = document.createElementNS(NS,tag); for(const k in a) e.setAttribute(k,a[k]); return e; };
+  const txt = (a,str)=>{ const e = mk("text",a); e.textContent = str; svg.appendChild(e); return e; };
+  const {T,V,ser,ta,va,L,widest,small,now,thr} = d;
+  const tEnd = ta || (now ? now.t : T[5]), spanR = tEnd-T[0], x0 = T[0]-0.05*spanR, x1 = tEnd+0.08*spanR;
+  const pts = []; for(let i=0;i<ser.t.length;i++) if(ser.t[i]>=x0 && ser.t[i]<=x1) pts.push([ser.t[i],ser.v[i]]);
+  let lo = Math.min.apply(null,V.concat([thr, now?now.v:V[5], va===null?V[5]:va])), hi = Math.max.apply(null,V.concat([va===null?V[5]:va]));
+  pts.forEach(q=>{ if(q[1]<lo && q[1]>lo-widest*1.2) lo = Math.min(lo,q[1]); if(q[1]>hi) hi = q[1]; });
+  const padY = (hi-lo)*0.06; lo -= padY; hi += padY;
+  const X = t=>ML+(t-x0)/(x1-x0)*(W-ML-MR), Y = v=>MT+(hi-v)/(hi-lo)*(H-MT-MB);
+  svg.appendChild(mk("rect",{x:0,y:0,width:W,height:H,fill:"#fff"}));
+  // grid: y (nice steps) and month ticks
+  const rough = (hi-lo)/6, mag = Math.pow(10,Math.floor(Math.log10(rough))), step = [1,2,2.5,5,10].map(m=>m*mag).find(m=>m>=rough) || 10*mag;
+  for(let v=Math.ceil(lo/step)*step; v<=hi; v+=step){ svg.appendChild(mk("line",{x1:ML,y1:Y(v),x2:W-MR,y2:Y(v),stroke:"#e5e7eb","stroke-width":1})); txt({x:ML-8,y:Y(v)+4,"text-anchor":"end","font-size":12,fill:"#334155"},triFmt(v)); }
+  const mths = (x1-x0)/2629800000, mstep = mths>40 ? 12 : mths>20 ? 6 : mths>10 ? 3 : mths>5 ? 2 : 1, dd0 = new Date(x0), MN = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  for(let y=dd0.getUTCFullYear(), m=dd0.getUTCMonth()+1; ; m+=1){
+    const t = Date.UTC(y,m,1); if(t>x1) break; if(t<x0) continue;
+    const dm = new Date(t); if((dm.getUTCMonth())%mstep!==0) continue;
+    svg.appendChild(mk("line",{x1:X(t),y1:MT,x2:X(t),y2:H-MB,stroke:"#eef0f3","stroke-width":1})); txt({x:X(t),y:H-MB+18,"text-anchor":"middle","font-size":12,fill:"#334155"},MN[dm.getUTCMonth()]+" "+String(dm.getUTCFullYear()).slice(2));
+  }
+  svg.appendChild(mk("rect",{x:ML,y:MT,width:W-ML-MR,height:H-MT-MB,fill:"none",stroke:"#94a3b8","stroke-width":1}));
+  const clip = mk("clipPath",{id:"triClip"}); clip.appendChild(mk("rect",{x:ML,y:MT,width:W-ML-MR,height:H-MT-MB})); svg.appendChild(clip);
+  const cg = mk("g",{"clip-path":"url(#triClip)"}); svg.appendChild(cg);
+  const step2 = Math.max(1,Math.floor(pts.length/1600));
+  cg.appendChild(mk("polyline",{points:pts.filter((q,i)=>i%step2===0).map(q=>X(q[0]).toFixed(1)+","+Y(q[1]).toFixed(1)).join(" "),fill:"none",stroke:"#b9bfc6","stroke-width":1.2}));
+  // thrust reference: e ± one widest leg
+  cg.appendChild(mk("line",{x1:ML,y1:Y(thr),x2:W-MR,y2:Y(thr),stroke:"#64748b","stroke-width":1.2,"stroke-dasharray":"2 4"}));
+  // trendlines to the apex (or to e when the lines do not converge)
+  const toT = ta || T[5], LC = "#7e22ce";
+  const ln = (k1,k2,sl)=> cg.appendChild(mk("line",{x1:X(T[k1]),y1:Y(V[k1]),x2:X(toT),y2:Y(V[k1]+sl*(toT-T[k1])),stroke:LC,"stroke-width":1.4,"stroke-dasharray":"6 4"}));
+  ln(1,3,d.sac); ln(2,4,d.sbd);
+  cg.appendChild(mk("polyline",{points:T.map((t,k)=>X(t).toFixed(1)+","+Y(V[k]).toFixed(1)).join(" "),fill:"none",stroke:LC,"stroke-width":2.4,"stroke-linejoin":"round"}));
+  if(now) cg.appendChild(mk("line",{x1:X(T[5]),y1:Y(V[5]),x2:X(now.t),y2:Y(now.v),stroke:"#dc2626","stroke-width":2.4}));
+  T.forEach((t,k)=>cg.appendChild(mk("circle",{cx:X(t),cy:Y(V[k]),r:5,fill:LC})));
+  if(now) cg.appendChild(mk("circle",{cx:X(now.t),cy:Y(now.v),r:4.5,fill:"#dc2626"}));
+  const names = [d.c.kinds.length>1 ? "x" : "start","a","b","c","d","e"];
+  T.forEach((t,k)=>{ const nb = k===0 ? V[1] : V[k-1], up = V[k]>nb; txt({x:X(t),y:Y(V[k])+(up?-12:20),"text-anchor":"middle","font-size":13,"font-weight":700,fill:"#4c1d95"},names[k]+"  "+triFmt(V[k])); });
+  if(now) txt({x:X(now.t)-8,y:Y(now.v)+22,"text-anchor":"end","font-size":13,"font-weight":700,fill:"#b91c1c"},"now  "+triFmt(now.v));
+  if(ta){
+    svg.appendChild(mk("circle",{cx:X(ta),cy:Y(va),r:10,fill:"none",stroke:LC,"stroke-width":2.4}));
+    const ad = new Date(ta), as = ("0"+ad.getUTCDate()).slice(-2)+" "+MN[ad.getUTCMonth()]+" "+ad.getUTCFullYear(), ax = X(ta), lx = Math.min(ax+4, W-MR-6), ly = Y(va)+(Y(va)>H-MB-90 ? -62 : 34);
+    txt({x:lx,y:ly,"text-anchor":"end","font-size":13,"font-weight":700,fill:LC},"APEX"); txt({x:lx,y:ly+15,"text-anchor":"end","font-size":13,"font-weight":700,fill:LC},as); txt({x:lx,y:ly+30,"text-anchor":"end","font-size":13,"font-weight":700,fill:LC},"≈ "+triFmt(va));
+  } else txt({x:W-MR-8,y:MT+18,"text-anchor":"end","font-size":12,"font-weight":700,fill:"#b45309"},"trendlines do not converge after e: no apex");
+  txt({x:ML+6,y:(Y(thr)<H-MB-16 ? Y(thr)-6 : Y(thr)+14),"font-size":12,fill:"#475569"},"e "+(d.dir<0?"−":"+")+" one widest leg ("+triFmt(widest)+") ≈ "+triFmt(thr));
+  const sg = (sl)=>Math.abs(sl*(T[5]-T[2]))<0.02*L[0] ? "flat" : sl>0 ? "up" : "down", s1 = sg(d.sbd), s2 = sg(d.sac);
+  const nm = ["a","b","c","d","e"], big = L.indexOf(widest), sm = L.indexOf(small);
+  const summ = nm.map((n,i)=>n+" "+triFmt(L[i])+(i===big?" (longest)":"")+(i===sm?" (smallest)":"")).join(" · ")+" · "+(s1===s2 ? "both lines slope "+s1 : "lines slope "+s2+" (a–c) and "+s1+" (b–d)");
+  txt({x:ML+6,y:H-MB-8,"font-size":12,fill:"#475569"},summ);
+  const tn = TAB_NAMES[activeTab] || activeTab, isReal = /real/.test(activeTab);
+  txt({x:ML,y:26,"font-size":17,"font-weight":700,fill:"#0f172a"},(d.tri.cls ? d.tri.cls+" triangle" : "Triangle")+" "+names[0]+"→e ("+tn+" pivots, "+(isReal?"Oct-2026 $":"nominal")+"): lines converge to the apex");
+  host.innerHTML = ""; host.appendChild(svg);
+  document.getElementById("triTtl").textContent = d.x.label+" · "+d.c.kind;
+}
+window.__triChart = function(){ triOpen = !triOpen; renderTriChart(); };
+window.__triPng = function(){
+  const svg = document.getElementById("triSvg"); if(!svg) return;
+  const xml = new XMLSerializer().serializeToString(svg), img = new Image();
+  img.onload = ()=>{ const cv = document.createElement("canvas"); cv.width = 2200; cv.height = 1240; const cx = cv.getContext("2d"); cx.fillStyle = "#fff"; cx.fillRect(0,0,cv.width,cv.height); cx.drawImage(img,0,0,cv.width,cv.height);
+    cv.toBlob(b=>{ const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "triangle_apex.png"; document.body.appendChild(a); a.click(); a.remove(); }); };
+  img.src = "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(xml);
+};
+window.addEventListener("keydown", e=>{ if(e.key==="Escape" && triOpen){ triOpen = false; renderTriChart(); } });
 
 function setCompactLevel(L){
   if(compactMode && compactLevel===L) compactMode = false; else { compactMode = true; compactLevel = L; }
