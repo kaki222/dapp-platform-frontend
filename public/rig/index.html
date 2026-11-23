@@ -41,6 +41,13 @@ button:focus-visible{outline:3px solid var(--drl);outline-offset:2px}
 .now{font-weight:600}
 details{margin-top:6px}summary{cursor:pointer;min-height:36px;font-weight:600}
 ol{padding-left:1.3em}ol li{margin-bottom:6px;max-width:75ch}
+.rigwin{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;background:var(--panel);border-radius:14px;padding:14px;border-top:4px solid #fff}
+.rigwin svg{display:block;width:100%;height:auto;border-radius:10px}
+.rd{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-content:start;font-size:15px}
+.rd dt{color:var(--mute)}.rd dd{margin:0;font-weight:600;text-align:right;white-space:nowrap}
+.statebig{font:800 26px "Red Hat Display";margin:2px 0 4px}
+.evt{min-height:2.6em;font-size:14px}
+@media(max-width:760px){.rigwin{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:820px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:420px){.kpis{grid-template-columns:minmax(0,1fr)}}
 </style></head><body>
@@ -54,6 +61,49 @@ ol{padding-left:1.3em}ol li{margin-bottom:6px;max-width:75ch}
  <button id="replay">Replay</button><button id="newrun">New random run</button>
 </div>
 <div id="status"></div><p id="msg" class="mute"></p>
+</div></section>
+
+<section class="band" style="padding-top:0"><div class="wrap">
+<div class="rigwin">
+ <svg id="rig" viewBox="0 0 640 400" role="img" aria-label="Animated drilling rig driven by the simulation">
+  <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop id="sky1" offset="0" stop-color="#1b2a66"/><stop id="sky2" offset="1" stop-color="#3a4d8f"/></linearGradient>
+   <linearGradient id="earth" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6b4f33"/><stop offset="1" stop-color="#2e2116"/></linearGradient></defs>
+  <rect width="640" height="250" fill="url(#sky)"/>
+  <circle id="sun" cx="560" cy="60" r="18" fill="#f7e463"/>
+  <g id="rain" opacity="0"></g>
+  <rect y="250" width="640" height="150" fill="url(#earth)"/>
+  <g id="strata" opacity=".35"></g>
+  <g id="derrick" stroke="#c9d2ee" stroke-width="2.2" fill="none"></g>
+  <rect x="288" y="22" width="64" height="12" rx="2" fill="#dfe5f7"/>
+  <line id="c1" x1="312" y1="34" x2="312" y2="80" stroke="#9aa6cf" stroke-width="1.4"/><line id="c2" x1="328" y1="34" x2="328" y2="80" stroke="#9aa6cf" stroke-width="1.4"/>
+  <line id="stand" x1="320" y1="120" x2="320" y2="234" stroke="#e6e9f5" stroke-width="5"/>
+  <g id="td"><rect x="298" y="0" width="44" height="36" rx="4" fill="#f0a830"/><g id="rotor" transform="translate(320,18)"><circle r="11" fill="#7a4d0a"/><line x1="-10" x2="10" stroke="#fff" stroke-width="2.5"/><line y1="-10" y2="10" stroke="#fff" stroke-width="2.5"/></g></g>
+  <rect x="214" y="232" width="212" height="10" fill="#8f9bc4"/><rect x="236" y="242" width="168" height="8" fill="#5d6a99"/>
+  <line x1="306" y1="250" x2="306" y2="290" stroke="#9aa6cf" stroke-width="3"/><line x1="334" y1="250" x2="334" y2="290" stroke="#9aa6cf" stroke-width="3"/>
+  <rect id="hole" x="308" y="250" width="24" height="0" fill="#140d08"/>
+  <line id="pipe" x1="320" y1="250" x2="320" y2="250" stroke="#e6e9f5" stroke-width="4"/>
+  <path id="bit" d="M311 0 L329 0 L320 10 Z" fill="#f7e463"/>
+  <circle id="stuck" cx="320" cy="0" r="16" fill="none" stroke="#ff5a4a" stroke-width="3" opacity="0"/>
+  <g id="pumpg"><rect id="pump" x="60" y="200" width="96" height="44" rx="6" fill="#3b4fd8"/><text x="108" y="227" text-anchor="middle" fill="#fff" font-size="13" font-weight="600">Mud pumps</text></g>
+  <path id="flow" d="M156 222 H236 V60 H298" fill="none" stroke="#4fc1c6" stroke-width="3" stroke-dasharray="8 8"/>
+  <g font-size="12" fill="#eef1fb"><text id="lbl_depth" x="342" y="300"></text><text id="lbl_evt" x="20" y="30" font-size="16" font-weight="800"></text><text id="lbl_clock" x="20" y="52" fill="#dfe5f7"></text></g>
+ </svg>
+ <div>
+  <div class="mute small">The rig right now</div>
+  <div class="statebig" id="r_state">–</div>
+  <p class="evt mute" id="r_evt"></p>
+  <dl class="rd">
+   <dt>Well</dt><dd id="r_well">–</dd>
+   <dt>Hole depth</dt><dd id="r_hole">–</dd>
+   <dt>Bit depth</dt><dd id="r_bit">–</dd>
+   <dt>Hookload</dt><dd id="r_hk">–</dd>
+   <dt>Block position</dt><dd id="r_bk">–</dd>
+   <dt>Rotary speed</dt><dd id="r_rpm">–</dd>
+   <dt>Pump pressure</dt><dd id="r_pp">–</dd>
+  </dl>
+  <p class="note">The drawing is driven by the same simulated readings as L0 below. Use Slow to watch single stands being drilled and connections made.</p>
+ </div>
+</div>
 </div></section>
 
 <section class="band" style="padding-top:0"><div class="wrap">
@@ -220,6 +270,38 @@ function drawBars(){const svg=$('wellbars'),W=svg.clientWidth;if(!W)return;const
  s+=`<text x="28" y="${H-3}" fill="var(--mute)" font-size="11">Well 1</text><text x="${W}" y="${H-3}" fill="var(--mute)" font-size="11" text-anchor="end">Well 50</text>`;
  svg.innerHTML=s}
 
+
+const EVT={stk:['Stuck pipe','The string is stuck: hookload far above string weight, no rotation. NPT.'],pmp:['Mud pump failure','Pumps down, rig waiting on repair. NPT.'],wx:['Waiting on weather','High wind: operations suspended. NPT.']};
+{const g=$('derrick');let d='<line x1="250" y1="234" x2="300" y2="34"/><line x1="390" y1="234" x2="340" y2="34"/>';
+ for(let k=0;k<9;k++){const y1=234-k*22,y2=y1-22,xl=a=>250+(234-a)*50/200,xr=a=>390-(234-a)*50/200;d+=`<line x1="${xl(y1)}" y1="${y1}" x2="${xr(y2)}" y2="${y2}" stroke-width="1"/><line x1="${xr(y1)}" y1="${y1}" x2="${xl(y2)}" y2="${y2}" stroke-width="1"/><line x1="${xl(y2)}" y1="${y2}" x2="${xr(y2)}" y2="${y2}" stroke-width="1"/>`}
+ g.innerHTML=d;let r='';for(let k=0;k<40;k++){const x=(k*53)%640,y=(k*37)%230;r+=`<line x1="${x}" y1="${y}" x2="${x-8}" y2="${y+16}" stroke="#bcd" stroke-width="1.2"/>`}$('rain').innerHTML=r;
+ let st='';for(let k=1;k<6;k++)st+=`<line x1="0" x2="640" y1="${250+k*27}" y2="${250+k*27}" stroke="#000" stroke-width="1"/>`;$('strata').innerHTML=st}
+let rot=0,flowOff=0;
+function drawRig(){
+ const j=(C.t-1+720)%720,has=C.t>0;
+ const blk=has?C.bk[j]:90,rpm=has?C.rp[j]:0,pp=has?C.pp[j]:0,hk=has?C.hk[j]:0,det=has?C.det[j]:0,tru=has?C.tru[j]:0;
+ const y=210-blk/90*160;$('td').setAttribute('transform',`translate(0,${y.toFixed(1)})`);
+ $('c1').setAttribute('y2',y);$('c2').setAttribute('y2',y);$('stand').setAttribute('y1',y+36);
+ if(rpm>40)rot=(rot+rpm*.9)%360;$('rotor').setAttribute('transform',`translate(320,18) rotate(${rot.toFixed(0)})`);
+ if(pp>1500)flowOff=(flowOff-3)%16;$('flow').style.strokeDashoffset=flowOff;$('flow').style.opacity=pp>1500?1:.2;
+ const sc=148/14000,hy=250+C.hole*sc,by=250+(C.done?0:C.bit)*sc;
+ $('hole').setAttribute('height',(C.hole*sc).toFixed(1));$('pipe').setAttribute('y2',by.toFixed(1));$('bit').setAttribute('transform',`translate(0,${(by-1).toFixed(1)})`);
+ const m=C.m,k=m&&m.k;
+ $('stuck').setAttribute('cy',by.toFixed(1));$('stuck').setAttribute('opacity',k==='stk'?(Math.floor(C.t/2)%2?1:.3):0);
+ $('pump').setAttribute('fill',k==='pmp'?'#e8452c':'#3b4fd8');$('rain').setAttribute('opacity',k==='wx'?.8:0);
+ const hr=(C.t%1440)/60,dayf=Math.max(0,Math.sin((hr-6)/12*Math.PI));
+ const mix=(a,b)=>`rgb(${a.map((v,i)=>Math.round(v+(b[i]-v)*dayf)).join(',')})`;
+ $('sky1').setAttribute('stop-color',k==='wx'?'#2b3346':mix([12,18,52],[70,130,210]));$('sky2').setAttribute('stop-color',k==='wx'?'#4a5266':mix([40,52,110],[170,205,240]));
+ $('sun').setAttribute('cy',(230-dayf*190).toFixed(0));$('sun').setAttribute('fill',dayf>0?'#f7e463':'#dfe5f7');
+ const evt=k==='trip'&&m.forced?['Forced trip','Pulling out of hole to clear a problem. NPT, but on these four signals it looks exactly like a planned trip.']:k==='trip'?['Planned trip','Changing the bit: pulling the string out and running back in.']:EVT[k];
+ $('lbl_evt').textContent=evt&&k!=='trip'||evt&&m.forced?evt[0]:'';$('lbl_evt').setAttribute('fill',tru>=3?'#ff5a4a':'#eef1fb');
+ const hh=Math.floor(hr),mm=Math.floor(C.t%60);$('lbl_clock').textContent=`Day ${Math.floor(C.t/1440)+1} · ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+ $('lbl_depth').textContent=`${f0(C.hole)} ft`;$('lbl_depth').setAttribute('y',Math.min(392,hy+4).toFixed(0));
+ $('r_state').textContent=C.done?'Campaign finished':has?ST[det<0?1:det][0]:'–';$('r_state').style.color=has?COL[det<0?1:det]:'';
+ $('r_evt').textContent=C.done?'':evt?evt[1]:det===0?'Rotating on bottom, pumps on, making hole.':det===1?'Adding a 90 ft stand: pumps off, block rising.':'';
+ $('r_well').textContent=C.done?`${NW} of ${NW}`:`${C.wi+1} of ${NW} · TD ${f0(C.wells[C.wi].td)} ft`;
+ $('r_hole').textContent=f0(C.hole)+' ft';$('r_bit').textContent=f0(C.bit)+' ft';$('r_hk').textContent=f0(hk)+' klb';$('r_bk').textContent=f0(blk)+' ft';$('r_rpm').textContent=f0(rpm)+' rpm';$('r_pp').textContent=f0(pp)+' psi';
+}
 function render(){
  const day=Math.floor(C.t/1440)+1;
  $('status').textContent=C.done?`Campaign finished · ${NW} wells in ${f0(C.t/1440)} days`:`Well ${C.wi+1} of ${NW} · Day ${day}`;
@@ -234,7 +316,7 @@ function render(){
   $('w_n').textContent='#'+L.n;$('w_n_s').textContent=`${f0(L.td)} ft total depth · ${L.days.toFixed(1)} days`;
   $('w_npt').textContent=L.nptF.toFixed(1)+' %';$('w_npt_s').textContent=`Found by the rules. True value ${L.nptT.toFixed(1)} %.`;
   $('w_dpk').textContent=L.dpk.toFixed(2);$('w_dpk_s').innerHTML=`Plan ${PLAN.toFixed(2)} · <span class="${L.dpk>PLAN?'warn':'good'}">${L.dpk>PLAN?'slower':'faster'}</span>`}
- drawSensors();drawShifts();drawBars();
+ drawRig();drawSensors();drawShifts();drawBars();
  $('seedline').textContent=`Run seed ${seed}. Replay repeats the same run; New random run draws new wells and events.`;
 }
 function reset(s){seed=s;C=newCampaign(seed);shown=0;$('msg').textContent='';
