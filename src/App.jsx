@@ -905,6 +905,18 @@ function App() {
             {activeTab === 'research' && (
               <div>
                 <ProjectRecord src="/research/brine-mine.json" />
+                {/* KPI roll-up error simulation (static page served from /public/kpi) */}
+                <div className="box mb-4" style={{ background: '#16213e', border: '1px solid #0f3460', padding: 0, overflow: 'hidden' }}>
+                  <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                    <h2 className="subtitle has-text-white mb-0">📐 KPI roll-up error simulation</h2>
+                    <a href="/kpi/index.html" target="_blank" rel="noopener noreferrer" className="button is-small is-link is-light">Open full page</a>
+                  </div>
+                  <iframe
+                    src="/kpi/index.html"
+                    title="KPI roll-up error simulation"
+                    style={{ width: '100%', height: '1900px', border: 'none', background: '#0b1433' }}
+                  />
+                </div>
                 {(userRole === 'RESEARCHER' || userRole === 'ADMIN') && (
                   <div className="box mb-4" style={{ background: '#16213e', border: '1px solid #0f3460' }}>
                     <h2 className="subtitle has-text-white">➕ Create Research Project</h2>
