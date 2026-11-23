@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rig sensor-to-manager simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@500;800&family=Red+Hat+Text:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: a live control-room explainer for examiners; figures climb from sensor to manager.
+   IDEA: the KPI pyramid as stacked levels, narrow at the top (manager), wide at the base (sensors).
+   PICTURE: the pyramid itself, running: live sensor traces at L0, shift strips at L1, well bars at L2, campaign figures at L3.
+   COLOUR and TYPE: navy ground; one colour per rig state; red marks NPT; Red Hat Display and Text.
+   LAYOUT: controls band, then L3 to L0 as centred cards of growing width, joined by short connector notes. */
+:root{color-scheme:dark;--bg:#0b1433;--ink:#eef1fb;--mute:#a8b2d6;--panel:#131e47;--line:#2a3870;--acc:#f7e463;--npt:#ff5a4a;
+--drl:#4fc1c6;--con:#7b8bd4;--trp:#f0a830;--wai:#e8452c;--stk:#a0185c}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Red Hat Text",system-ui,sans-serif;overflow-x:clip}
+h1,h2,.fig-big{font-family:"Red Hat Display",system-ui,sans-serif}
+h1{font-weight:800;font-size:clamp(28px,4.2vw,46px);line-height:1.05;margin:0 0 8px;text-wrap:balance}
+p{max-width:72ch;margin:0 0 8px}.mute{color:var(--mute)}.small{font-size:13.5px}
+.band{padding:clamp(20px,3.5vw,44px) max(4vw,14px)}.wrap{max-width:1240px;margin:0 auto}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px}
+button{font:600 15px "Red Hat Text";min-height:44px;padding:0 16px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+button.on{background:var(--acc);color:#0b1433;border-color:var(--acc)}
+button:focus-visible{outline:3px solid var(--drl);outline-offset:2px}
+.seg{display:inline-flex}.seg button{border-radius:0}.seg button:first-child{border-radius:8px 0 0 8px}.seg button:last-child{border-radius:0 8px 8px 0}
+#status{font-weight:600;margin-top:12px}#msg{min-height:3em}
+.lvl{margin:0 auto;background:var(--panel);border-radius:14px;padding:16px 18px;border-top:4px solid var(--acc)}
+.l3{max-width:820px}.l2{max-width:960px;border-top-color:#9fb0ff}.l1{max-width:1100px;border-top-color:var(--trp)}.l0{max-width:1240px;border-top-color:var(--drl)}
+.hd{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.tag{font:800 26px "Red Hat Display";color:var(--acc)}.role{font-weight:600}.scope{color:var(--mute);font-size:14px}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.k{background:#0e1838;border-radius:10px;padding:12px}
+.k .lab{font-size:13.5px;color:var(--mute)}.fig-big{font-weight:800;font-size:clamp(24px,3vw,34px);line-height:1.1;margin:4px 0;white-space:nowrap}
+.k .sub{font-size:13px;color:var(--mute)}
+.warn{color:var(--npt)}.good{color:var(--drl)}
+.note{font-size:13.5px;color:var(--mute);margin:10px 0 0}
+.join{text-align:center;color:var(--mute);font-size:14px;padding:10px 12px}
+.join::before{content:"↑";display:block;font-size:20px;color:var(--acc);line-height:1}
+.fig{position:relative}.fig>svg{display:block;width:100%}
+.key{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13.5px;color:var(--mute);margin-top:8px}
+.sw{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.now{font-weight:600}
+details{margin-top:6px}summary{cursor:pointer;min-height:36px;font-weight:600}
+ol{padding-left:1.3em}ol li{margin-bottom:6px;max-width:75ch}
+@media(max-width:820px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:420px){.kpis{grid-template-columns:minmax(0,1fr)}}
+</style></head><body>
+
+<section class="band"><div class="wrap">
+<h1>Rig sensor-to-manager simulator</h1>
+<p class="mute">One rig drills 50 wells. Four sensor readings, one per minute, are turned into rig states, then well results, then the campaign numbers a manager reads. Watch the figures climb the pyramid. All data is synthetic.</p>
+<div class="bar">
+ <button id="pause" class="on">Pause</button>
+ <span class="seg" role="group" aria-label="Speed"><button data-sp="20">Slow</button><button data-sp="180" class="on">Normal</button><button data-sp="1440">Fast</button></span>
+ <button id="replay">Replay</button><button id="newrun">New random run</button>
+</div>
+<div id="status"></div><p id="msg" class="mute"></p>
+</div></section>
+
+<section class="band" style="padding-top:0"><div class="wrap">
+
+<div class="lvl l3"><div class="hd"><span class="tag">L3</span><span class="role">Manager</span><span class="scope">Strategic · whole campaign</span></div>
+ <div class="kpis">
+  <div class="k"><div class="lab">Wells delivered vs plan</div><div class="fig-big" id="k_wells">–</div><div class="sub" id="k_wells_s"></div></div>
+  <div class="k"><div class="lab">Field cost per foot</div><div class="fig-big" id="k_cpf">–</div><div class="sub" id="k_cpf_s"></div></div>
+  <div class="k"><div class="lab">Field NPT</div><div class="fig-big" id="k_npt">–</div><div class="sub" id="k_npt_s"></div></div>
+  <div class="k"><div class="lab">Days per 1,000 ft</div><div class="fig-big" id="k_dpk">–</div><div class="sub" id="k_dpk_s"></div></div>
+ </div>
+ <p class="note">Built from the L2 results of every finished well. Ratios are pooled: totals are added first, then divided once.</p>
+</div>
+<div class="join">Every time a well finishes, its L2 results are added to the campaign totals</div>
+
+<div class="lvl l2"><div class="hd"><span class="tag">L2</span><span class="role">Engineer</span><span class="scope">Tactical · per well</span></div>
+ <div class="kpis">
+  <div class="k"><div class="lab">Last well finished</div><div class="fig-big" id="w_n">–</div><div class="sub" id="w_n_s"></div></div>
+  <div class="k"><div class="lab">NPT % for that well</div><div class="fig-big" id="w_npt">–</div><div class="sub" id="w_npt_s"></div></div>
+  <div class="k" style="grid-column:span 2"><div class="lab">Days per 1,000 ft</div><div class="fig-big" id="w_dpk">–</div><div class="sub" id="w_dpk_s"></div></div>
+ </div>
+ <div class="fig" style="margin-top:12px"><svg id="wellbars" height="130"></svg></div>
+ <div class="key"><span><span class="sw" style="background:var(--drl)"></span>NPT % found by the rules</span><span><span class="sw" style="background:var(--npt)"></span>Above 20 %</span><span><span class="sw" style="background:var(--acc);border-radius:50%"></span>True NPT % (known to the simulator)</span></div>
+ <p class="note">Built from the L1 rig-state hours of one well: NPT hours ÷ total hours, and total days ÷ thousands of feet drilled.</p>
+</div>
+<div class="join">Minutes in each rig state are added up for the well</div>
+
+<div class="lvl l1"><div class="hd"><span class="tag">L1</span><span class="role">Operator</span><span class="scope">Operational · per shift</span></div>
+ <p>Rig state right now: <span class="now" id="nowstate">–</span></p>
+ <div class="fig"><svg id="shifts" height="168"></svg></div>
+ <div class="key" id="statekey"></div>
+ <p class="note">Rules read the L0 signals every minute and name the rig state. Each row is one 12-hour shift. The red figure at the right is the NPT hours in that shift.</p>
+</div>
+<div class="join">Rules turn raw readings into a rig state, once a minute</div>
+
+<div class="lvl l0"><div class="hd"><span class="tag">L0</span><span class="role">Sensors</span><span class="scope">Real time · every minute</span></div>
+ <div class="fig"><svg id="sensors" height="330"></svg></div>
+ <p class="note">Last 12 hours of raw readings. The two strips underneath compare the rig state the rules detected with the true state the simulator generated. A red bar under a strip marks NPT.</p>
+</div>
+
+</div></section>
+
+<section class="band" style="padding-top:0"><div class="wrap">
+<details open><summary>What is simplified</summary>
+<ol>
+<li>Everything is synthetic. Trouble events (stuck pipe, mud pump failure, waiting on weather, forced trip) are drawn at random, and each well has its own trouble level. Costs are assumed: $150,000 per rig day plus $520 per foot.</li>
+<li>Rig states come from simple threshold rules on hookload, block position, rotary speed and pump pressure, plus hole depth. This is a simplification: real systems use more channels and the daily drilling report. The rules were written against the same simulator, so the high match rate is flattering.</li>
+<li>NPT here means unplanned time: stuck pipe, pump failure, waiting on weather and forced trips. A forced trip looks the same as a planned trip on these four signals, so the rules cannot see it. That is the main reason found NPT is lower than true NPT.</li>
+<li>Days per 1,000 ft run from spud to total depth. The plan is 1.90 days per 1,000 ft. Wells delivered versus plan counts the wells whose planned finish date has passed.</li>
+</ol>
+<p class="mute small" id="seedline"></p>
+</details>
+</div></section>
+
+<script>
+{
+/*SIM*/
+const ST=[['Drilling','--drl'],['Connection','--con'],['Tripping','--trp'],['Waiting (NPT)','--wai'],['Stuck pipe (NPT)','--stk']];
+const NW=50,PLAN=1.9,RIGDAY=150000,PERFT=520,BASE=4.6e-4,STILL=10;
+const mul=a=>()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+function newCampaign(seed){
+ const r=mul(seed),U=(a,b)=>a+(b-a)*r();
+ const wells=[];let pe=0;
+ for(let i=0;i<NW;i++){const td=Math.round(U(6000,14000)/10)*10;pe+=td/1000*PLAN;wells.push({td,rop:U(.38,.5),trouble:U(.3,2),planEnd:pe})}
+ const C={seed,r,U,wells,wi:0,t:0,done:false,fin:[],
+  hk:new Float32Array(720),bk:new Float32Array(720),rp:new Float32Array(720),pp:new Float32Array(720),tru:new Uint8Array(720),det:new Uint8Array(720),
+  shifts:new Map(),lastMsg:''};
+ startWell(C);return C;
+}
+function startWell(C){Object.assign(C,{hole:0,bit:0,block:90,sinceStand:0,sinceTrip:0,nextTrip:C.U(3000,4500),m:null,pendTrip:false,still:0,lastMov:1,prevBlock:90,wm:0,wdet:0,wtru:0})}
+function trip(C,forced){const st=Math.max(1,Math.ceil(C.bit/90));return{k:'trip',forced,phase:'out',left:st,stands:st,sub:0}}
+function step(C){
+ if(C.done)return;
+ const w=C.wells[C.wi],r=C.r,n=x=>x+(r()-.5)*2;
+ let s,hook,rpm,pump;
+ if(!C.m){ // drilling, or start of an event
+  if(r()<BASE*w.trouble){const e=r();
+   C.m=e<.3?{k:'stk',left:Math.round(C.U(120,720))}:e<.6?{k:'pmp',left:Math.round(C.U(60,360))}:e<.8?{k:'wx',left:Math.round(C.U(180,1440))}:trip(C,true);
+  }
+ }
+ const W=50+.02*C.bit;
+ if(!C.m){
+  const d=w.rop*(1+.2*(r()-.5));C.hole+=d;C.bit=C.hole;C.sinceStand+=d;C.sinceTrip+=d;C.block=Math.max(0,90-C.sinceStand);
+  s=0;hook=W-25+n(3);rpm=120+n(5);pump=2500+n(50);
+  if(C.sinceStand>=90){C.sinceStand-=90;C.m={k:'con',left:5}}
+  if(C.sinceTrip>=C.nextTrip){C.sinceTrip=0;C.nextTrip=C.U(3000,4500);C.pendTrip=true}
+ }else{
+  const m=C.m;
+  if(m.k==='con'){s=1;C.block=(5-m.left+1)*18;hook=W+n(3);rpm=0;pump=n(20)+20;m.left--;if(m.left<=0){C.m=C.pendTrip?trip(C,false):null;C.pendTrip=false}}
+  else if(m.k==='trip'){s=m.forced?5:2;rpm=0;pump=n(20)+20;
+   if(m.sub===0){C.block=m.phase==='out'?90:0;hook=W+n(4);m.sub=1}
+   else{C.block=m.phase==='out'?0:90;hook=40+n(2);m.sub=0;C.bit+=m.phase==='out'?-90:90;C.bit=Math.max(0,Math.min(C.hole,C.bit));m.left--;
+    if(m.left<=0){if(m.phase==='out'){m.phase='in';m.left=m.stands}else{C.bit=C.hole;C.block=90;C.sinceStand=0;C.m=null}}}
+  }else{m.left--;rpm=0;
+   if(m.k==='stk'){s=4;hook=W+80+n(8);rpm=Math.max(0,n(10)+5);pump=2800+n(60)}
+   else{s=3;hook=40+n(2);pump=n(20)+20}
+   if(m.left<=0)C.m=null}
+ }
+ // L0 -> L1 rules: thresholds on the four signals plus hole depth
+ const v=C.block-C.prevBlock;C.prevBlock=C.block;
+ let d;
+ if(hook>50+.02*C.hole+50)d=4;
+ else if(pump>1500&&rpm>40)d=0;
+ else if(Math.abs(v)>=30)d=2;
+ else if(v>=5)d=1;
+ else d=-1;
+ const i=C.t%720,sh=Math.floor(C.t/720);
+ if(!C.shifts.has(sh)){C.shifts.set(sh,new Uint8Array(720).fill(255));for(const k of C.shifts.keys())if(k<sh-6)C.shifts.delete(k)}
+ if(d===-1){C.still++;
+  if(C.still<STILL)d=C.lastMov;
+  else if(C.still===STILL){d=3;for(let b=1;b<STILL;b++){const tt=C.t-b,j=tt%720,sa=C.shifts.get(Math.floor(tt/720));if(C.det[j]!==3&&C.det[j]!==4)C.wdet++;C.det[j]=3;if(sa)sa[tt%720]=3}}
+  else d=3;
+ }else{C.still=0;C.lastMov=d===2?2:1}
+ C.hk[i]=hook;C.bk[i]=C.block;C.rp[i]=rpm;C.pp[i]=pump;C.tru[i]=s;C.det[i]=d;C.shifts.get(sh)[i]=d;
+ C.wm++;if(d===3||d===4)C.wdet++;if(s>=3)C.wtru++;
+ C.t++;
+ if(C.hole>=w.td){
+  const days=C.wm/1440,ft=w.td;
+  C.fin.push({n:C.wi+1,td:ft,days,mins:C.wm,det:C.wdet,tru:C.wtru,nptF:C.wdet/C.wm*100,nptT:C.wtru/C.wm*100,dpk:days/(ft/1000),cost:days*RIGDAY+ft*PERFT});
+  C.wi++;if(C.wi>=NW)C.done=true;else startWell(C);
+ }
+}
+function field(C){const f=C.fin;if(!f.length)return null;let ft=0,cost=0,m=0,det=0,tru=0,days=0,sc=0,sn=0;
+ for(const w of f){ft+=w.td;cost+=w.cost;m+=w.mins;det+=w.det;tru+=w.tru;days+=w.days;sc+=w.cost/w.td;sn+=w.nptF}
+ const day=C.t/1440,planned=C.wells.filter(w=>w.planEnd<=day).length;
+ return{cpf:cost/ft,cpfAvg:sc/f.length,npt:det/m*100,nptAvg:sn/f.length,nptTrue:tru/m*100,dpk:days/(ft/1000),planned}}
+/*END*/
+
+const $=id=>document.getElementById(id),css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const COL=ST.map(s=>css(s[1])),NPTC=css('--npt');
+const f0=x=>Math.round(x).toLocaleString('en-US');
+$('statekey').innerHTML=ST.map((s,i)=>`<span><span class="sw" style="background:${COL[i]}"></span>${s[0]}</span>`).join('');
+let seed=2026,C=newCampaign(seed),speed=180,running=true,shown=0;
+
+function runs(get,len){const out=[];let a=0,cur=get(0);for(let x=1;x<=len;x++){const v=x<len?get(x):-2;if(v!==cur){out.push([a,x,cur]);a=x;cur=v}}return out}
+function strip(get,len,x0,y,wid,h,trueStrip){let s='';const px=wid/720;
+ for(const[a,b,c]of runs(get,len)){if(c===255||c<0)continue;const col=c===5?COL[2]:COL[c];s+=`<rect x="${(x0+a*px).toFixed(1)}" y="${y}" width="${((b-a)*px+.4).toFixed(1)}" height="${h}" fill="${col}"/>`;
+  const npt=trueStrip?c>=3:(c===3||c===4);if(npt)s+=`<rect x="${(x0+a*px).toFixed(1)}" y="${y+h+2}" width="${((b-a)*px+.4).toFixed(1)}" height="4" fill="${NPTC}"/>`}
+ return s}
+
+function drawSensors(){const svg=$('sensors'),W=svg.clientWidth;if(!W)return;const L=Math.min(720,C.t),lab=W<520?62:120,x0=lab,wid=W-lab-8,px=wid/720,off=720-L;
+ const ch=[['Hookload','klb',C.hk,0,400],['Block position','ft',C.bk,0,95],['Rotary speed','rpm',C.rp,0,150],['Pump pressure','psi',C.pp,0,3200]];
+ let s='',y=6;const rowH=50;
+ {let m=0;for(let k=0;k<L;k++){const v=C.hk[(C.t-L+k+720)%720];if(v>m)m=v}ch[0][4]=Math.max(120,Math.ceil(m*1.15/50)*50)}
+ for(const[nm,u,arr,lo,hi]of ch){let p='';for(let k=0;k<L;k++){const j=(C.t-L+k)%720,v=arr[(j+720)%720];p+=(k?'L':'M')+(x0+(off+k)*px).toFixed(1)+' '+(y+rowH-4-(Math.min(hi,Math.max(lo,v))-lo)/(hi-lo)*(rowH-8)).toFixed(1)}
+  const last=L?arr[(C.t-1+720)%720]:0;
+  s+=`<line x1="${x0}" x2="${x0+wid}" y1="${y+rowH-4}" y2="${y+rowH-4}" stroke="var(--line)"/><path d="${p}" fill="none" stroke="var(--ink)" stroke-width="1.2"/>`;
+  s+=`<text x="0" y="${y+18}" fill="var(--mute)" font-size="12">${W<520?nm.split(' ')[0]:nm}</text><text x="0" y="${y+34}" fill="var(--ink)" font-size="13" font-weight="600">${f0(last)} ${u}</text>`;y+=rowH+6}
+ const gd=k=>C.det[(C.t-L+k+720)%720],gt=k=>C.tru[(C.t-L+k+720)%720];
+ s+=`<text x="0" y="${y+12}" fill="var(--mute)" font-size="12">Detected</text>`+strip(gd,L,x0+off*px,y,wid,14,false);y+=26;
+ s+=`<text x="0" y="${y+12}" fill="var(--mute)" font-size="12">True</text>`+strip(gt,L,x0+off*px,y,wid,14,true);y+=24;
+ s+=`<text x="${x0}" y="${y+10}" fill="var(--mute)" font-size="12">−12 h</text><text x="${x0+wid}" y="${y+10}" fill="var(--mute)" font-size="12" text-anchor="end">now</text>`;
+ svg.setAttribute('height',y+14);svg.innerHTML=s}
+
+function drawShifts(){const svg=$('shifts'),W=svg.clientWidth;if(!W)return;const cur=Math.floor(C.t/720),lab=W<520?62:86,x0=lab,wid=W-lab-62;let s='',y=4;
+ for(let sh=Math.max(0,cur-5);sh<=cur;sh++){const a=C.shifts.get(sh);if(!a)continue;let npt=0;for(const c of a)if(c===3||c===4)npt++;
+  s+=`<text x="0" y="${y+15}" fill="var(--mute)" font-size="12.5">Shift ${sh+1}</text>`+strip(k=>a[k],720,x0,y+2,wid,16,false)+`<text x="${W}" y="${y+15}" fill="${npt?NPTC:'var(--mute)'}" font-size="13" font-weight="600" text-anchor="end">${(npt/60).toFixed(1)} h</text>`;y+=27}
+ svg.setAttribute('height',y+2);svg.innerHTML=s}
+
+function drawBars(){const svg=$('wellbars'),W=svg.clientWidth;if(!W)return;const H=130,pb=18,top=6,ih=H-pb-top,mx=40,bw=(W-30)/NW;let s='';
+ const y=v=>top+ih-Math.min(mx,v)/mx*ih;
+ s+=`<line x1="28" x2="${W}" y1="${y(20)}" y2="${y(20)}" stroke="${NPTC}" stroke-dasharray="3 3" opacity=".6"/><text x="0" y="${y(20)+4}" fill="var(--mute)" font-size="11">20 %</text><text x="0" y="${y(0)+4}" fill="var(--mute)" font-size="11">0</text>`;
+ for(const w of C.fin){const x=28+(w.n-1)*bw;s+=`<rect x="${x.toFixed(1)}" y="${y(w.nptF).toFixed(1)}" width="${Math.max(1,bw-1.5).toFixed(1)}" height="${(top+ih-y(w.nptF)).toFixed(1)}" fill="${w.nptF>20?NPTC:COL[0]}"/><circle cx="${(x+bw/2-.75).toFixed(1)}" cy="${y(w.nptT).toFixed(1)}" r="${Math.min(3,bw/3).toFixed(1)}" fill="var(--acc)"/>`}
+ s+=`<text x="28" y="${H-3}" fill="var(--mute)" font-size="11">Well 1</text><text x="${W}" y="${H-3}" fill="var(--mute)" font-size="11" text-anchor="end">Well 50</text>`;
+ svg.innerHTML=s}
+
+function render(){
+ const day=Math.floor(C.t/1440)+1;
+ $('status').textContent=C.done?`Campaign finished · ${NW} wells in ${f0(C.t/1440)} days`:`Well ${C.wi+1} of ${NW} · Day ${day}`;
+ const nowS=C.t?C.det[(C.t-1)%720]:0;$('nowstate').textContent=C.t?ST[nowS<0?1:nowS][0]:'–';
+ const F=field(C),L=C.fin[C.fin.length-1];
+ if(L&&L.n!==shown){shown=L.n;$('msg').textContent=`Well ${L.n} finished at ${f0(L.td)} ft. NPT ${L.nptF.toFixed(1)} % (true ${L.nptT.toFixed(1)} %) and ${L.dpk.toFixed(2)} days per 1,000 ft. These go to L2 for the engineer, then into the campaign totals at L3.`}
+ if(F){const del=C.fin.length,diff=del-F.planned;
+  $('k_wells').textContent=`${del} / ${F.planned}`;$('k_wells_s').innerHTML=`planned by now · <span class="${diff<0?'warn':'good'}">${diff<0?'Behind plan by '+(-diff):diff>0?'Ahead of plan by '+diff:'On plan'} well${Math.abs(diff)===1?'':'s'}</span>`;
+  $('k_cpf').textContent=`$${f0(F.cpf)} /ft`;$('k_cpf_s').textContent=`Total cost ÷ total footage. Averaging the wells would say $${f0(F.cpfAvg)}.`;
+  $('k_npt').textContent=`${F.npt.toFixed(1)} %`;$('k_npt_s').textContent=`All NPT hours ÷ all hours. Averaging well NPT % would say ${F.nptAvg.toFixed(1)} %. True ${F.nptTrue.toFixed(1)} %.`;
+  $('k_dpk').textContent=F.dpk.toFixed(2);$('k_dpk_s').innerHTML=`Plan ${PLAN.toFixed(2)} · <span class="${F.dpk>PLAN?'warn':'good'}">${F.dpk>PLAN?'slower':'faster'} than plan</span>`;
+  $('w_n').textContent='#'+L.n;$('w_n_s').textContent=`${f0(L.td)} ft total depth · ${L.days.toFixed(1)} days`;
+  $('w_npt').textContent=L.nptF.toFixed(1)+' %';$('w_npt_s').textContent=`Found by the rules. True value ${L.nptT.toFixed(1)} %.`;
+  $('w_dpk').textContent=L.dpk.toFixed(2);$('w_dpk_s').innerHTML=`Plan ${PLAN.toFixed(2)} · <span class="${L.dpk>PLAN?'warn':'good'}">${L.dpk>PLAN?'slower':'faster'}</span>`}
+ drawSensors();drawShifts();drawBars();
+ $('seedline').textContent=`Run seed ${seed}. Replay repeats the same run; New random run draws new wells and events.`;
+}
+function reset(s){seed=s;C=newCampaign(seed);shown=0;$('msg').textContent='';
+ for(const id of['k_wells','k_cpf','k_npt','k_dpk','w_n','w_npt','w_dpk'])$(id).textContent='–';
+ for(const id of['k_wells_s','k_cpf_s','k_npt_s','k_dpk_s','w_n_s','w_npt_s','w_dpk_s'])$(id).textContent='';render()}
+function loop(){if(running&&!C.done){for(let k=0;k<speed&&!C.done;k++)step(C);render()}requestAnimationFrame(loop)}
+$('pause').onclick=()=>{running=!running;$('pause').textContent=running?'Pause':'Play';$('pause').classList.toggle('on',running)};
+document.querySelectorAll('[data-sp]').forEach(b=>b.onclick=()=>{speed=+b.dataset.sp;document.querySelectorAll('[data-sp]').forEach(x=>x.classList.toggle('on',x===b))});
+$('replay').onclick=()=>reset(seed);
+$('newrun').onclick=()=>reset(Math.floor(Math.random()*1e6));
+new ResizeObserver(render).observe(document.body);
+render();requestAnimationFrame(loop);
+}
+</script>
+</body></html>
