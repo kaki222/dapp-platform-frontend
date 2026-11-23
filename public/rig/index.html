@@ -65,28 +65,32 @@ ol{padding-left:1.3em}ol li{margin-bottom:6px;max-width:75ch}
 
 <section class="band" style="padding-top:0"><div class="wrap">
 <div class="rigwin">
- <svg id="rig" viewBox="0 0 640 400" role="img" aria-label="Animated drilling rig driven by the simulation">
+ <svg id="rig" viewBox="0 0 640 480" role="img" aria-label="Animated drilling rig driven by the simulation">
   <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop id="sky1" offset="0" stop-color="#1b2a66"/><stop id="sky2" offset="1" stop-color="#3a4d8f"/></linearGradient>
-   <linearGradient id="earth" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6b4f33"/><stop offset="1" stop-color="#2e2116"/></linearGradient></defs>
+   <pattern id="p_sand" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#dcc07e"/><circle cx="2" cy="2" r=".9" fill="#a8864a"/><circle cx="6" cy="6" r=".9" fill="#a8864a"/></pattern>
+   <pattern id="p_anh" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#e6cdd9"/><path d="M0 8 L8 0" stroke="#b28fa1" stroke-width="1"/></pattern>
+   <pattern id="p_lst" width="16" height="8" patternUnits="userSpaceOnUse"><rect width="16" height="8" fill="#94bcdc"/><path d="M0 .5 H16 M8 0 V4 M0 4.5 H16 M0 4 V8 M16 4 V8" stroke="#5f88aa" stroke-width=".8" fill="none"/></pattern>
+   <pattern id="p_dol" width="16" height="8" patternUnits="userSpaceOnUse"><rect width="16" height="8" fill="#b9a2cf"/><path d="M0 .5 H16 M6 0 L10 4 M0 4.5 H16 M2 4 L6 8" stroke="#83699c" stroke-width=".8" fill="none"/></pattern>
+   <pattern id="p_sh" width="12" height="6" patternUnits="userSpaceOnUse"><rect width="12" height="6" fill="#8d937c"/><path d="M1 2 H6 M7 5 H11" stroke="#5d6350" stroke-width="1"/></pattern>
+   <pattern id="p_marl" width="16" height="8" patternUnits="userSpaceOnUse"><rect width="16" height="8" fill="#a7b3a0"/><path d="M0 .5 H16 M8 0 V4 M2 6 H6 M10 6 H14" stroke="#6f7a68" stroke-width=".8" fill="none"/></pattern>
+  </defs>
   <rect width="640" height="250" fill="url(#sky)"/>
   <circle id="sun" cx="560" cy="60" r="18" fill="#f7e463"/>
   <g id="rain" opacity="0"></g>
-  <rect y="250" width="640" height="150" fill="url(#earth)"/>
-  <g id="strata" opacity=".35"></g>
+  <g id="geo"></g>
   <g id="derrick" stroke="#c9d2ee" stroke-width="2.2" fill="none"></g>
   <rect x="288" y="22" width="64" height="12" rx="2" fill="#dfe5f7"/>
   <line id="c1" x1="312" y1="34" x2="312" y2="80" stroke="#9aa6cf" stroke-width="1.4"/><line id="c2" x1="328" y1="34" x2="328" y2="80" stroke="#9aa6cf" stroke-width="1.4"/>
   <line id="stand" x1="320" y1="120" x2="320" y2="234" stroke="#e6e9f5" stroke-width="5"/>
   <g id="td"><rect x="298" y="0" width="44" height="36" rx="4" fill="#f0a830"/><g id="rotor" transform="translate(320,18)"><circle r="11" fill="#7a4d0a"/><line x1="-10" x2="10" stroke="#fff" stroke-width="2.5"/><line y1="-10" y2="10" stroke="#fff" stroke-width="2.5"/></g></g>
   <rect x="214" y="232" width="212" height="10" fill="#8f9bc4"/><rect x="236" y="242" width="168" height="8" fill="#5d6a99"/>
-  <line x1="306" y1="250" x2="306" y2="290" stroke="#9aa6cf" stroke-width="3"/><line x1="334" y1="250" x2="334" y2="290" stroke="#9aa6cf" stroke-width="3"/>
-  <rect id="hole" x="308" y="250" width="24" height="0" fill="#140d08"/>
+  <rect id="hole" x="309" y="250" width="22" height="0" fill="#140d08"/><line id="cs1a" x1="307" y1="250" x2="307" y2="250" stroke="#dfe5f7" stroke-width="2"/><line id="cs1b" x1="333" y1="250" x2="333" y2="250" stroke="#dfe5f7" stroke-width="2"/><line id="cs2a" x1="310.5" y1="250" x2="310.5" y2="250" stroke="#b9c2e0" stroke-width="1.5"/><line id="cs2b" x1="329.5" y1="250" x2="329.5" y2="250" stroke="#b9c2e0" stroke-width="1.5"/>
   <line id="pipe" x1="320" y1="250" x2="320" y2="250" stroke="#e6e9f5" stroke-width="4"/>
   <path id="bit" d="M311 0 L329 0 L320 10 Z" fill="#f7e463"/>
   <circle id="stuck" cx="320" cy="0" r="16" fill="none" stroke="#ff5a4a" stroke-width="3" opacity="0"/>
   <g id="pumpg"><rect id="pump" x="60" y="200" width="96" height="44" rx="6" fill="#3b4fd8"/><text x="108" y="227" text-anchor="middle" fill="#fff" font-size="13" font-weight="600">Mud pumps</text></g>
   <path id="flow" d="M156 222 H236 V60 H298" fill="none" stroke="#4fc1c6" stroke-width="3" stroke-dasharray="8 8"/>
-  <g font-size="12" fill="#eef1fb"><text id="lbl_depth" x="342" y="300"></text><text id="lbl_evt" x="20" y="30" font-size="16" font-weight="800"></text><text id="lbl_clock" x="20" y="52" fill="#dfe5f7"></text></g>
+  <g font-size="12" fill="#eef1fb"><text id="lbl_depth" x="342" y="300" paint-order="stroke" stroke="#140d08" stroke-width="3"></text><text id="lbl_evt" x="20" y="30" font-size="16" font-weight="800"></text><text id="lbl_clock" x="20" y="52" fill="#dfe5f7"></text></g>
  </svg>
  <div>
   <div class="mute small">The rig right now</div>
@@ -96,12 +100,13 @@ ol{padding-left:1.3em}ol li{margin-bottom:6px;max-width:75ch}
    <dt>Well</dt><dd id="r_well">–</dd>
    <dt>Hole depth</dt><dd id="r_hole">–</dd>
    <dt>Bit depth</dt><dd id="r_bit">–</dd>
+   <dt>Formation at bit</dt><dd id="r_fm">–</dd>
    <dt>Hookload</dt><dd id="r_hk">–</dd>
    <dt>Block position</dt><dd id="r_bk">–</dd>
    <dt>Rotary speed</dt><dd id="r_rpm">–</dd>
    <dt>Pump pressure</dt><dd id="r_pp">–</dd>
   </dl>
-  <p class="note">The drawing is driven by the same simulated readings as L0 below. Use Slow to watch single stands being drilled and connections made.</p>
+  <p class="note">The drawing is driven by the same simulated readings as L0 below. Use Slow to watch single stands being drilled and connections made. The rock column is a generalised onshore Abu Dhabi sequence with illustrative depths; it does not change the simulated drilling rate.</p>
  </div>
 </div>
 </div></section>
@@ -271,34 +276,55 @@ function drawBars(){const svg=$('wellbars'),W=svg.clientWidth;if(!W)return;const
  svg.innerHTML=s}
 
 
+
+const SC=225/14000,FM=[[0,'Fars / Quaternary','sand','Sand and evaporites'],[700,'Dammam · Rus','anh','Limestone and anhydrite'],[1800,'Umm Er Radhuma','dol','Dolomitic limestone'],[2900,'Simsima','lst','Limestone'],[3700,'Fiqa','sh','Shale and marl'],[5300,'Shilaif · Mishrif','lst','Limestone'],[6000,'Nahr Umr','sh','Shale'],[6900,'Shuaiba','lst','Limestone, reservoir'],[7300,'Thamama','lst','Limestone, reservoir'],[8800,'Hith','anh','Anhydrite, seal'],[9600,'Arab','dol','Carbonate, reservoir'],[10600,'Diyab · Dukhan','marl','Argillaceous limestone'],[12000,'Araej · Izhara','dol','Limestone and dolomite'],[14000,'','','']];
+const CSG=[[1800,'cs1'],[6500,'cs2']];
+const bnd=(d,x)=>250+d*SC+(d?3*Math.sin(x/95+d/900)+(x-320)*.012*Math.min(1,d/3000):0);
+function buildGeo(){let g='';
+ for(let i=0;i<FM.length-1;i++){const a=FM[i][0],b=FM[i+1][0];let top='',bot='';
+  for(let x=0;x<=640;x+=16){top+=(x?' L':'M')+x+' '+bnd(a,x).toFixed(1);}
+  for(let x=640;x>=0;x-=16){bot+=' L'+x+' '+Math.min(480,bnd(b,x)).toFixed(1)}
+  g+=`<path d="${top}${bot} Z" fill="url(#p_${FM[i][2]})" stroke="#3b2f22" stroke-width=".6"/>`;
+  const ym=250+(a+b)/2*SC;if(i&&(b-a)*SC<10){}else if(i)g+=`<text class="fm" data-i="${i}" x="632" y="${(ym+4).toFixed(0)}" text-anchor="end" font-size="11" fill="#1a1a1a" paint-order="stroke" stroke="rgba(255,255,255,.55)" stroke-width="3">${FM[i][1]}</text>`;else g+=`<text class="fm" data-i="0" x="632" y="${(250+a*SC+10).toFixed(0)}" text-anchor="end" font-size="11" fill="#1a1a1a" paint-order="stroke" stroke="rgba(255,255,255,.55)" stroke-width="3">${FM[0][1]}</text>`}
+ g+=`<rect x="0" y="250" width="58" height="230" fill="rgba(11,20,51,.55)"/>`;
+ for(let d=2000;d<14000;d+=2000){const y=250+d*SC;g+=`<line x1="52" x2="58" y1="${y}" y2="${y}" stroke="#eef1fb"/><text x="4" y="${(y+4).toFixed(0)}" font-size="10.5" fill="#eef1fb">${(d/1000)}k ft</text>`}
+ $('geo').innerHTML=g}
+function fmAt(d){let i=0;while(i<FM.length-2&&d>=FM[i+1][0])i++;return i}
 const EVT={stk:['Stuck pipe','The string is stuck: hookload far above string weight, no rotation. NPT.'],pmp:['Mud pump failure','Pumps down, rig waiting on repair. NPT.'],wx:['Waiting on weather','High wind: operations suspended. NPT.']};
 {const g=$('derrick');let d='<line x1="250" y1="234" x2="300" y2="34"/><line x1="390" y1="234" x2="340" y2="34"/>';
  for(let k=0;k<9;k++){const y1=234-k*22,y2=y1-22,xl=a=>250+(234-a)*50/200,xr=a=>390-(234-a)*50/200;d+=`<line x1="${xl(y1)}" y1="${y1}" x2="${xr(y2)}" y2="${y2}" stroke-width="1"/><line x1="${xr(y1)}" y1="${y1}" x2="${xl(y2)}" y2="${y2}" stroke-width="1"/><line x1="${xl(y2)}" y1="${y2}" x2="${xr(y2)}" y2="${y2}" stroke-width="1"/>`}
  g.innerHTML=d;let r='';for(let k=0;k<40;k++){const x=(k*53)%640,y=(k*37)%230;r+=`<line x1="${x}" y1="${y}" x2="${x-8}" y2="${y+16}" stroke="#bcd" stroke-width="1.2"/>`}$('rain').innerHTML=r;
- let st='';for(let k=1;k<6;k++)st+=`<line x1="0" x2="640" y1="${250+k*27}" y2="${250+k*27}" stroke="#000" stroke-width="1"/>`;$('strata').innerHTML=st}
-let rot=0,flowOff=0;
+ buildGeo()}
+let rot=0,flowOff=0,frame=0,heldEvt=null,holdTo=0,lastFm=-1;const sm={day:0,rain:0,stk:0,blk:90,pmp:0};
+function modeDet(n){const c=[0,0,0,0,0];n=Math.min(n,C.t,720);for(let b=1;b<=n;b++){const v=C.det[(C.t-b+720)%720];c[v<0?1:v]++}let m=0;for(let i=1;i<5;i++)if(c[i]>c[m])m=i;return m}
 function drawRig(){
- const j=(C.t-1+720)%720,has=C.t>0;
- const blk=has?C.bk[j]:90,rpm=has?C.rp[j]:0,pp=has?C.pp[j]:0,hk=has?C.hk[j]:0,det=has?C.det[j]:0,tru=has?C.tru[j]:0;
- const y=210-blk/90*160;$('td').setAttribute('transform',`translate(0,${y.toFixed(1)})`);
+ const j=(C.t-1+720)%720,has=C.t>0,al=Math.min(1,20/speed);
+ const blk=has?C.bk[j]:90,rpm=has?C.rp[j]:0,pp=has?C.pp[j]:0,hk=has?C.hk[j]:0,tru=has?C.tru[j]:0,det=has?(speed>20?modeDet(speed):C.det[j]):0;
+ sm.blk+=(blk-sm.blk)*al;const y=210-sm.blk/90*160;$('td').setAttribute('transform',`translate(0,${y.toFixed(1)})`);
  $('c1').setAttribute('y2',y);$('c2').setAttribute('y2',y);$('stand').setAttribute('y1',y+36);
  if(rpm>40)rot=(rot+rpm*.9)%360;$('rotor').setAttribute('transform',`translate(320,18) rotate(${rot.toFixed(0)})`);
  if(pp>1500)flowOff=(flowOff-3)%16;$('flow').style.strokeDashoffset=flowOff;$('flow').style.opacity=pp>1500?1:.2;
- const sc=148/14000,hy=250+C.hole*sc,by=250+(C.done?0:C.bit)*sc;
- $('hole').setAttribute('height',(C.hole*sc).toFixed(1));$('pipe').setAttribute('y2',by.toFixed(1));$('bit').setAttribute('transform',`translate(0,${(by-1).toFixed(1)})`);
+ const sc=SC,hy=250+C.hole*sc,by=250+(C.done?0:C.bit)*sc;
+ $('hole').setAttribute('height',(C.hole*sc).toFixed(1));
+ for(const[dep,id]of CSG){const yy=(250+Math.min(C.hole,dep)*sc).toFixed(1);$(id+'a').setAttribute('y2',yy);$(id+'b').setAttribute('y2',yy)}
+ const fi=fmAt(C.done?0:C.bit);if(fi!==lastFm){lastFm=fi;document.querySelectorAll('#geo .fm').forEach(t=>{const on=+t.dataset.i===fi;t.setAttribute('font-weight',on?800:400);t.setAttribute('fill',on?'#000':'#1a1a1a')})}
+ $('r_fm').textContent=FM[fi][1];$('pipe').setAttribute('y2',by.toFixed(1));$('bit').setAttribute('transform',`translate(0,${(by-1).toFixed(1)})`);
  const m=C.m,k=m&&m.k;
- $('stuck').setAttribute('cy',by.toFixed(1));$('stuck').setAttribute('opacity',k==='stk'?(Math.floor(C.t/2)%2?1:.3):0);
- $('pump').setAttribute('fill',k==='pmp'?'#e8452c':'#3b4fd8');$('rain').setAttribute('opacity',k==='wx'?.8:0);
- const hr=(C.t%1440)/60,dayf=Math.max(0,Math.sin((hr-6)/12*Math.PI));
+ $('stuck').setAttribute('cy',by.toFixed(1));sm.stk+=((k==='stk'?1:0)-sm.stk)*al;sm.pmp+=((k==='pmp'?1:0)-sm.pmp)*al;sm.rain+=((k==='wx'?.8:0)-sm.rain)*al;
+ $('stuck').setAttribute('opacity',(sm.stk*(speed<=20?(Math.floor(C.t/2)%2?1:.4):1)).toFixed(2));
+ $('pump').setAttribute('fill',sm.pmp>.5?'#e8452c':'#3b4fd8');$('rain').setAttribute('opacity',sm.rain.toFixed(2));
+ const hr=(C.t%1440)/60;sm.day+=(Math.max(0,Math.sin((hr-6)/12*Math.PI))-sm.day)*al;const dayf=sm.day;
  const mix=(a,b)=>`rgb(${a.map((v,i)=>Math.round(v+(b[i]-v)*dayf)).join(',')})`;
- $('sky1').setAttribute('stop-color',k==='wx'?'#2b3346':mix([12,18,52],[70,130,210]));$('sky2').setAttribute('stop-color',k==='wx'?'#4a5266':mix([40,52,110],[170,205,240]));
+ $('sky1').setAttribute('stop-color',sm.rain>.4?'#2b3346':mix([12,18,52],[70,130,210]));$('sky2').setAttribute('stop-color',sm.rain>.4?'#4a5266':mix([40,52,110],[170,205,240]));
  $('sun').setAttribute('cy',(230-dayf*190).toFixed(0));$('sun').setAttribute('fill',dayf>0?'#f7e463':'#dfe5f7');
- const evt=k==='trip'&&m.forced?['Forced trip','Pulling out of hole to clear a problem. NPT, but on these four signals it looks exactly like a planned trip.']:k==='trip'?['Planned trip','Changing the bit: pulling the string out and running back in.']:EVT[k];
- $('lbl_evt').textContent=evt&&k!=='trip'||evt&&m.forced?evt[0]:'';$('lbl_evt').setAttribute('fill',tru>=3?'#ff5a4a':'#eef1fb');
+ let evt=k==='trip'&&m.forced?['Forced trip','Pulling out of hole to clear a problem. NPT, but on these four signals it looks exactly like a planned trip.']:k==='trip'?['Planned trip','Changing the bit: pulling the string out and running back in.']:EVT[k];
+ const now=performance.now();if(evt&&(k!=='trip'||m.forced)){heldEvt=evt;holdTo=now+(speed>20?1500:0)}else if(now>holdTo)heldEvt=null;if(!evt&&heldEvt)evt=heldEvt;
+ $('lbl_evt').textContent=heldEvt?heldEvt[0]:'';$('lbl_evt').setAttribute('fill',tru>=3?'#ff5a4a':'#eef1fb');
  const hh=Math.floor(hr),mm=Math.floor(C.t%60);$('lbl_clock').textContent=`Day ${Math.floor(C.t/1440)+1} · ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
- $('lbl_depth').textContent=`${f0(C.hole)} ft`;$('lbl_depth').setAttribute('y',Math.min(392,hy+4).toFixed(0));
+ $('lbl_depth').textContent=`${f0(C.hole)} ft`;$('lbl_depth').setAttribute('y',Math.min(474,hy+4).toFixed(0));
  $('r_state').textContent=C.done?'Campaign finished':has?ST[det<0?1:det][0]:'–';$('r_state').style.color=has?COL[det<0?1:det]:'';
- $('r_evt').textContent=C.done?'':evt?evt[1]:det===0?'Rotating on bottom, pumps on, making hole.':det===1?'Adding a 90 ft stand: pumps off, block rising.':'';
+ const DESC=['Rotating on bottom, pumps on, making hole.','Adding a 90 ft stand: pumps off, block rising.','Tripping: moving the string, no rotation, pumps off.','Rig idle: no rotation, no flow, block still. NPT.','Overpull far above string weight: stuck pipe. NPT.'];
+ $('r_evt').textContent=C.done?'':evt&&(det>=3||(evt[0]==='Forced trip'&&det===2))?evt[1]:DESC[det<0?1:det];
  $('r_well').textContent=C.done?`${NW} of ${NW}`:`${C.wi+1} of ${NW} · TD ${f0(C.wells[C.wi].td)} ft`;
  $('r_hole').textContent=f0(C.hole)+' ft';$('r_bit').textContent=f0(C.bit)+' ft';$('r_hk').textContent=f0(hk)+' klb';$('r_bk').textContent=f0(blk)+' ft';$('r_rpm').textContent=f0(rpm)+' rpm';$('r_pp').textContent=f0(pp)+' psi';
 }
@@ -316,7 +342,7 @@ function render(){
   $('w_n').textContent='#'+L.n;$('w_n_s').textContent=`${f0(L.td)} ft total depth · ${L.days.toFixed(1)} days`;
   $('w_npt').textContent=L.nptF.toFixed(1)+' %';$('w_npt_s').textContent=`Found by the rules. True value ${L.nptT.toFixed(1)} %.`;
   $('w_dpk').textContent=L.dpk.toFixed(2);$('w_dpk_s').innerHTML=`Plan ${PLAN.toFixed(2)} · <span class="${L.dpk>PLAN?'warn':'good'}">${L.dpk>PLAN?'slower':'faster'}</span>`}
- drawRig();drawSensors();drawShifts();drawBars();
+ drawRig();frame++;const every=speed>=1440?8:speed>=180?2:1;if(frame%every===0||!running||C.done){drawSensors();drawShifts();drawBars()}
  $('seedline').textContent=`Run seed ${seed}. Replay repeats the same run; New random run draws new wells and events.`;
 }
 function reset(s){seed=s;C=newCampaign(seed);shown=0;$('msg').textContent='';
