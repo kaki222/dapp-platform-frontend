@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KPI roll-up error</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@500;800&family=Red+Hat+Text:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: a graphics-desk explainer for examiners: finding first, then the evidence, live.
+   IDEA: a well-site daily drilling report sheet, ratios pooled vs averaged.
+   PICTURE: three error histograms side by side with the flip rate large beside them.
+   COLOUR and TYPE: navy ground, weather-chart scale; red for "average overstates", teal for "understates"; Red Hat.
+   LAYOUT: title + controls band, figures band, summary table, check against Table 16, method notes. */
+:root{color-scheme:light dark;--bg:#0b1433;--ink:#eef1fb;--mute:#a8b2d6;--panel:#131e47;--line:#2a3870;--hi:#e8452c;--lo:#4fc1c6;--acc:#f7e463;--b:#3b4fd8}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Red Hat Text",system-ui,sans-serif;overflow-x:clip}
+h1,h2,.big{font-family:"Red Hat Display",system-ui,sans-serif}
+h1{font-weight:800;font-size:clamp(30px,4.4vw,48px);line-height:1.05;margin:0 0 10px;text-wrap:balance;max-width:22ch}
+h2{font-weight:800;font-size:22px;margin:0 0 12px}
+p{max-width:70ch;margin:0 0 10px}.mute{color:var(--mute)}
+.band{padding:clamp(24px,4vw,56px) max(5vw,16px)}.wrap{max-width:1240px;margin:0 auto}
+.ctl{display:flex;flex-wrap:wrap;gap:14px 20px;align-items:end;margin-top:18px}
+.ctl label{display:flex;flex-direction:column;font-size:14px;color:var(--mute);gap:4px}
+input[type=number]{font:16px "Red Hat Text";width:7.5em;padding:9px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+input[type=range]{width:180px;accent-color:var(--acc);min-height:32px}
+.chk{flex-direction:row!important;align-items:center;gap:8px!important;min-height:44px}
+button{font:600 16px "Red Hat Text";min-height:44px;padding:0 20px;border-radius:8px;border:0;background:var(--acc);color:#0b1433;cursor:pointer}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--lo);outline-offset:2px}
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(0,.8fr);gap:16px}
+.card{background:var(--panel);border-radius:12px;padding:16px}
+.card h3{margin:0 0 4px;font:600 15px "Red Hat Text"}
+.fig{position:relative;min-height:210px}.fig>svg{position:absolute;inset:0;width:100%;height:100%}
+.big{font-weight:800;font-size:clamp(44px,6vw,72px);line-height:1;color:var(--acc)}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--mute);font-weight:600}
+.pass{color:var(--lo);font-weight:600}.fail{color:var(--hi);font-weight:600}
+.key{display:flex;gap:16px;flex-wrap:wrap;font-size:14px;color:var(--mute);margin-top:8px}
+.sw{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.scroll{overflow-x:auto}
+details{margin-top:10px}summary{cursor:pointer;min-height:32px}
+@media(max-width:900px){.grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+@media(max-width:600px){.grid{grid-template-columns:minmax(0,1fr)}table{font-size:13px}input[type=range]{width:140px}}
+@media(prefers-reduced-motion:no-preference){.card{transition:opacity .25s}.busy .card{opacity:.5}}
+</style></head><body>
+
+<section class="band"><div class="wrap">
+<h1 id="headline">Averaging well ratios gives the wrong field KPI</h1>
+<p class="mute" id="lede">Random drilling campaigns: each field KPI computed the correct way (pooled: Σ numerators ÷ Σ denominators) and the wrong way (simple mean of well ratios).</p>
+<div class="ctl">
+ <label>Trials (N)<input type="number" id="n" value="1000" min="100" max="100000" step="100"></label>
+ <label>Footage min: <b id="fminv">2,000</b> ft<input type="range" id="fmin" min="1000" max="10000" step="500" value="2000"></label>
+ <label>Footage max: <b id="fmaxv">20,000</b> ft<input type="range" id="fmax" min="10000" max="30000" step="500" value="20000"></label>
+ <label class="chk"><input type="checkbox" id="fix"> Fixed seed</label>
+ <label>Seed<input type="number" id="seed" value="2026"></label>
+ <button id="run">Run</button>
+</div>
+</div></section>
+
+<section class="band" style="padding-top:0"><div class="wrap">
+<div class="grid">
+ <div class="card"><h3>NPT %</h3><div class="mute" style="font-size:13px">error, % of pooled</div><div class="fig"><svg id="h0"></svg></div></div>
+ <div class="card"><h3>Cost per foot</h3><div class="mute" style="font-size:13px">error, % of pooled</div><div class="fig"><svg id="h1"></svg></div></div>
+ <div class="card"><h3>Days per 1,000 ft</h3><div class="mute" style="font-size:13px">error, % of pooled</div><div class="fig"><svg id="h2"></svg></div></div>
+ <div class="card"><h3>Ranking flips (cost per foot)</h3><div class="big" id="flip">–</div>
+  <p class="mute" style="font-size:14px;margin-top:8px" id="flipnote">of two-field comparisons ranked the wrong way by averaging.</p>
+  <p class="mute" style="font-size:13px" id="flipother"></p></div>
+</div>
+<div class="key"><span><span class="sw" style="background:var(--hi)"></span>Average overstates</span><span><span class="sw" style="background:var(--lo)"></span>Average understates</span><span id="runinfo"></span></div>
+</div></section>
+
+<section class="band" style="padding-top:0"><div class="wrap">
+<h2>Summary</h2>
+<div class="scroll"><table id="sum"><thead><tr><th>KPI</th><th>Mean error</th><th>Median</th><th>95th pct |error|</th><th>Worst case</th><th>Trials overstated</th></tr></thead><tbody></tbody></table></div>
+<div class="ctl" style="margin-top:12px"><button class="ghost" id="copy">Copy results (CSV)</button><span class="mute" id="copied" style="font-size:14px"></span></div>
+</div></section>
+
+<section class="band" style="padding-top:0"><div class="wrap">
+<h2>Check against the report (Table 16)</h2>
+<p class="mute">Wells A, B, C from the report. The program must reproduce the report's figures before the random runs are trusted.</p>
+<div class="scroll"><table id="chk"><thead><tr><th>KPI</th><th>Pooled</th><th>Simple average</th><th>Error</th><th>Report</th><th>Result</th></tr></thead><tbody></tbody></table></div>
+</div></section>
+
+<section class="band" style="padding-top:0"><div class="wrap">
+<h2>Method and assumptions</h2>
+<p>Each well: footage, days per 1,000 ft (1.8–3.0), NPT share (5–35 %) and cost per foot ($700–1,200) drawn uniformly; rig days = footage ÷ 1,000 × days per 1,000 ft, NPT days = rig days × NPT share, cost = cost per foot × footage. Test 1 uses 3–10 wells per campaign; Test 2 two fields X and Y of 2–6 wells each, lower cost per foot ranked better.</p>
+<p>Error = (average − pooled) ÷ pooled × 100, the same formula for all three KPIs. For NPT the report states the gap in percentage points; the check table shows both.</p>
+<p class="mute">All wells are randomly generated: the results show how the roll-up method behaves, not real field performance. The ranges are assumptions chosen to bracket the report's examples.</p>
+</div></section>
+
+<script>
+{
+const $=id=>document.getElementById(id);
+const f0=x=>x.toLocaleString('en-US',{maximumFractionDigits:0});
+let rnd=Math.random;
+const mul=a=>()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+const U=(a,b)=>a+(b-a)*rnd(), I=(a,b)=>a+Math.floor(rnd()*(b-a+1));
+const KPI=[['NPT %','npt','rig'],['Cost per foot','cost','ft'],['Days per 1,000 ft','rig','kft']];
+function well(fmin,fmax){const ft=U(fmin,fmax),dpk=U(1.8,3),sh=U(.05,.35),cpf=U(700,1200);const rig=ft/1000*dpk;return{ft,kft:ft/1000,rig,npt:rig*sh,cost:cpf*ft}}
+function roll(ws,num,den){let sn=0,sd=0,sr=0;for(const w of ws){sn+=w[num];sd+=w[den];sr+=w[num]/w[den]}return{pooled:sn/sd,avg:sr/ws.length}}
+const pct=(a,p)=>{const s=[...a].sort((x,y)=>x-y);const i=(s.length-1)*p,lo=Math.floor(i);return s[lo]+(s[Math.ceil(i)]-s[lo])*(i-lo)};
+let last=null;
+
+function run(){
+ const N=Math.max(100,Math.min(100000,+$('n').value||1000)),fmin=+$('fmin').value,fmax=+$('fmax').value;
+ if($('fix').checked){rnd=mul(+$('seed').value||1)}else{const s=Math.floor(Math.random()*1e9);$('seed').value=s;rnd=mul(s)}
+ const err=[[],[],[]],flips=[0,0,0];
+ for(let t=0;t<N;t++){
+  const ws=Array.from({length:I(3,10)},()=>well(fmin,fmax));
+  KPI.forEach((k,i)=>{const r=roll(ws,k[1],k[2]);err[i].push((r.avg-r.pooled)/r.pooled*100)});
+ }
+ for(let t=0;t<N;t++){
+  const X=Array.from({length:I(2,6)},()=>well(fmin,fmax)),Y=Array.from({length:I(2,6)},()=>well(fmin,fmax));
+  KPI.forEach((k,i)=>{const x=roll(X,k[1],k[2]),y=roll(Y,k[1],k[2]);if((x.pooled<y.pooled)!==(x.avg<y.avg))flips[i]++});
+ }
+ last={N,err,flips,fmin,fmax,seed:$('seed').value};
+ render();
+}
+
+function stats(a){const ab=a.map(Math.abs);let w=a[0];for(const v of a)if(Math.abs(v)>Math.abs(w))w=v;
+ return{mean:a.reduce((s,v)=>s+v,0)/a.length,med:pct(a,.5),p95:pct(ab,.95),worst:w,over:a.filter(v=>v>0).length/a.length*100}}
+const sg=v=>(v>0?'+':v<0?'−':'')+Math.abs(v).toFixed(1)+' %';
+
+function hist(svg,a){
+ const W=svg.clientWidth,H=svg.clientHeight;if(!W||!H)return;
+ const m=Math.max(1,Math.ceil(Math.max(...a.map(Math.abs)))),B=30,bw=2*m/B,c=new Array(B).fill(0);
+ for(const v of a)c[Math.min(B-1,Math.floor((v+m)/bw))]++;
+ const mx=Math.max(...c),pl=6,pb=22,iw=W-2*pl,ih=H-pb-6,x=v=>pl+(v+m)/(2*m)*iw;
+ let s='';c.forEach((n,i)=>{const v0=-m+i*bw,h=n/mx*ih;s+=`<rect x="${x(v0)+.5}" y="${6+ih-h}" width="${Math.max(1,iw/B-1)}" height="${h}" fill="${v0+bw/2>0?'var(--hi)':'var(--lo)'}"/>`});
+ s+=`<line x1="${x(0)}" x2="${x(0)}" y1="4" y2="${6+ih}" stroke="var(--acc)" stroke-width="1.5"/>`;
+ const fs=W<240?11:12;
+ s+=`<text x="${pl}" y="${H-5}" fill="var(--mute)" font-size="${fs}">−${m} %</text><text x="${x(0)}" y="${H-5}" fill="var(--mute)" font-size="${fs}" text-anchor="middle">0</text><text x="${W-pl}" y="${H-5}" fill="var(--mute)" font-size="${fs}" text-anchor="end">+${m} %</text>`;
+ svg.innerHTML=s;
+}
+
+function render(){
+ if(!last)return;const{N,err,flips,fmin,fmax,seed}=last;
+ err.forEach((a,i)=>hist($('h'+i),a));
+ const S=err.map(stats);
+ $('sum').tBodies[0].innerHTML=KPI.map((k,i)=>`<tr><td>${k[0]}</td><td>${sg(S[i].mean)}</td><td>${sg(S[i].med)}</td><td>${S[i].p95.toFixed(1)} %</td><td>${sg(S[i].worst)}</td><td>${S[i].over.toFixed(0)} %</td></tr>`).join('');
+ const fr=flips.map(f=>f/N*100);
+ $('flip').textContent=fr[1].toFixed(1)+' %';
+ $('flipother').textContent=`Same test: NPT % ${fr[0].toFixed(1)} %, days per 1,000 ft ${fr[2].toFixed(1)} %.`;
+ $('headline').textContent=`Averaging misstates field KPIs by up to ${Math.max(...S.map(s=>s.p95)).toFixed(0)} % and misranks ${fr[1].toFixed(0)} % of field pairs`;
+ $('lede').textContent=`${f0(N)} random campaigns, footage ${f0(fmin)}–${f0(fmax)} ft. Typical (median) error is small, but it runs both ways and the tails are wide: in 1 trial in 20 the averaged cost per foot is off by more than ${S[1].p95.toFixed(1)} %.`;
+ $('runinfo').textContent=`N = ${f0(N)} · seed ${seed}`;
+}
+
+function check(){
+ const W=[{ft:10000,rig:20,npt:2,cost:8e6},{ft:6000,rig:18,npt:6,cost:6.3e6},{ft:12000,rig:22,npt:1.5,cost:9.2e6}].map(w=>({...w,kft:w.ft/1000}));
+ const rep=[[15.8,16.7,0.9,'pp'],[839.3,872.2,3.9,'%'],[2.143,2.278,6.3,'%']],dp=[1,1,3];
+ $('chk').tBodies[0].innerHTML=KPI.map((k,i)=>{const r=roll(W,k[1],k[2]),mul=i===0?100:1,p=r.pooled*mul,a=r.avg*mul,rel=(r.avg-r.pooled)/r.pooled*100;
+  const e=i===0?`+${(a-p).toFixed(1)} pp (+${rel.toFixed(1)} %)`:`+${rel.toFixed(1)} %`;
+  const ok=+p.toFixed(dp[i])===rep[i][0]&&+a.toFixed(dp[i])===rep[i][1]&&+(i===0?a-p:rel).toFixed(1)===rep[i][2];
+  return `<tr><td>${k[0]}</td><td>${p.toFixed(dp[i])}</td><td>${a.toFixed(dp[i])}</td><td>${e}</td><td>${rep[i][0]} / ${rep[i][1]} / +${rep[i][2]} ${rep[i][3]}</td><td class="${ok?'pass':'fail'}">${ok?'Pass':'Fail'}</td></tr>`}).join('');
+}
+
+$('fmin').oninput=()=>{$('fminv').textContent=f0(+$('fmin').value)};
+$('fmax').oninput=()=>{$('fmaxv').textContent=f0(+$('fmax').value)};
+$('run').onclick=run;
+$('copy').onclick=async()=>{if(!last)return;const S=last.err.map(stats);
+ let t='KPI,mean %,median %,p95 |error| %,worst %,trials overstated %\n'+KPI.map((k,i)=>[k[0],S[i].mean.toFixed(2),S[i].med.toFixed(2),S[i].p95.toFixed(2),S[i].worst.toFixed(2),S[i].over.toFixed(1)].join(',')).join('\n');
+ t+=`\nflip rate cost per foot %,${(last.flips[1]/last.N*100).toFixed(2)}\nN,${last.N}\nseed,${last.seed}\nfootage ft,${last.fmin}-${last.fmax}\n`;
+ try{await navigator.clipboard.writeText(t);$('copied').textContent='Copied.'}catch(e){$('copied').textContent='Copy was blocked by the browser.'}};
+const ro=new ResizeObserver(()=>{if(last)last.err.forEach((a,i)=>hist($('h'+i),a))});
+['h0','h1','h2'].forEach(id=>ro.observe($(id)));
+check();run();
+}
+</script>
+</body></html>
